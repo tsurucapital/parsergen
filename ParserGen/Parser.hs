@@ -1,0 +1,231 @@
+{-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples #-}
+
+-- |
+-- Based on Data.Attoparsec.Zepto by  Bryan O'Sullivan 2011
+--
+-- A tiny, highly specialized combinator parser for 'B.ByteString'
+-- strings. Designed to split bytestrings into fields with fixed widths.
+--
+-- unsafe versions of the functions do not perform checks that there
+-- is enough data left in the bytestring
+
+
+module ParserGen.Parser
+    (
+      Parser
+    , parse
+    , ensureBytesLeft
+    , atEnd
+    , string
+    , take
+    , unsafeTake
+    , skip
+    , unsafeSkip
+    , decimalX
+    , unsafeDecimalX
+    , decimalXS
+    , unsafeDecimalXS
+    , takeWhile
+    , sign
+    ) where
+
+import Data.Word (Word8)
+import Control.Applicative
+import Control.Monad
+import Data.Monoid
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as C8
+import qualified Data.ByteString.Unsafe as B
+import Data.ByteString (ByteString)
+import Prelude hiding (take, takeWhile)
+import Data.Char (ord)
+
+newtype S = S {
+      input :: ByteString
+    }
+
+data Result a = Fail String
+              | OK !a
+
+-- | A simple parser.
+--
+-- This monad is strict in its state, and the monadic bind operator
+-- ('>>=') evaluates each result to weak head normal form before
+-- passing it along.
+newtype Parser a = Parser {
+      runParser :: S -> (# Result a, S #)
+    }
+
+instance Functor Parser where
+    fmap f m = Parser $ \s -> case runParser m s of
+                                (# OK a, s' #)     -> (# OK (f a), s' #)
+                                (# Fail err, s' #) -> (# Fail err, s' #)
+    {-# INLINE fmap #-}
+
+instance Monad Parser where
+    return a = Parser $ \s -> (# OK a, s #)
+    {-# INLINE return #-}
+
+    m >>= k   = Parser $ \s -> case runParser m s of
+                                 (# OK a, s' #) -> runParser (k a) s'
+                                 (# Fail err, s' #) -> (# Fail err, s' #)
+    {-# INLINE (>>=) #-}
+
+    fail msg = Parser $ \s -> (# Fail msg, s #)
+
+instance MonadPlus Parser where
+    mzero = fail "mzero"
+    {-# INLINE mzero #-}
+
+    mplus a b = Parser $ \s ->
+                case runParser a s of
+                  (# ok@(OK _), s' #) -> (# ok, s' #)
+                  (# _, _ #) -> case runParser b s of
+                                   (# ok@(OK _), s'' #) -> (# ok, s'' #)
+                                   (# err, s'' #) -> (# err, s'' #)
+    {-# INLINE mplus #-}
+
+instance Applicative Parser where
+    pure   = return
+    {-# INLINE pure #-}
+    (<*>)  = ap
+    {-# INLINE (<*>) #-}
+
+gets :: (S -> a) -> Parser a
+gets f = Parser $ \s -> (# OK (f s), s #)
+{-# INLINE gets #-}
+
+put :: S -> Parser ()
+put s = Parser $ \_ -> (# OK (), s #)
+{-# INLINE put #-}
+
+-- | Run a parser.
+parse :: Parser a -> ByteString -> Either String a
+parse p bs = case runParser p (S bs) of
+               (# OK a, _ #) -> Right a
+               (# Fail err, _ #) -> Left err
+
+instance Monoid (Parser a) where
+    mempty  = fail "mempty"
+    {-# INLINE mempty #-}
+    mappend = mplus
+    {-# INLINE mappend #-}
+
+instance Alternative Parser where
+    empty = fail "empty"
+    {-# INLINE empty #-}
+    (<|>) = mplus
+    {-# INLINE (<|>) #-}
+
+-- | Consume input while the predicate returns 'True'.
+takeWhile :: (Word8 -> Bool) -> Parser ByteString
+takeWhile p = do
+  (h,t) <- gets (B.span p . input)
+  put (S t)
+  return h
+{-# INLINE takeWhile #-}
+
+-- | Consume @n@ bytes of input.
+take :: Int -> Parser ByteString
+take !n = do
+  s <- gets input
+  if B.length s >= n
+    then put (S (B.unsafeDrop n s)) >> return (B.unsafeTake n s)
+    else fail "insufficient input for take"
+{-# INLINE take #-}
+
+ensureBytesLeft :: Int -> Parser ()
+ensureBytesLeft l = do
+    s <- gets input
+    if B.length s == l
+        then return ()
+        else fail $ "Unexpected length"
+{-# INLINE ensureBytesLeft #-}
+
+-- | Consume @n@ bytes of input without checking if it's available
+unsafeTake :: Int -> Parser ByteString
+unsafeTake !n = do
+    s <- gets input
+    put (S (B.unsafeDrop n s))
+    return (B.unsafeTake n s)
+{-# INLINE unsafeTake #-}
+
+-- | Skip @n@ bytes of input
+skip :: Int -> Parser ()
+skip !n = do
+    s <- gets input
+    if B.length s >= n
+        then put (S (B.unsafeDrop n s))
+        else fail "insufficient input for skip"
+{-# INLINE skip #-}
+
+-- | Skip @n@ bytes of input without checking if it's available
+unsafeSkip :: Int -> Parser ()
+unsafeSkip !n = gets input >>= put . S . B.unsafeTake n
+{-# INLINE unsafeSkip #-}
+
+-- | Match a string exactly.
+string :: ByteString -> Parser ()
+string s = do
+  i <- gets input
+  if s `B.isPrefixOf` i
+    then put (S (B.unsafeDrop (B.length s) i)) >> return ()
+    else fail $ "string"
+{-# INLINE string #-}
+
+-- | Indicate whether the end of the input has been reached.
+atEnd :: Parser Bool
+atEnd = do
+  i <- gets input
+  return $! B.null i
+{-# INLINE atEnd #-}
+
+unsafeDecimalX :: Int -> Parser Int
+unsafeDecimalX l = do
+        raw <- gets input
+        loop raw 0 (B.unsafeTake l raw)
+    where
+        loop :: ByteString -> Int -> ByteString -> Parser Int
+        loop raw !i s | B.null s = do
+                put (S (B.unsafeDrop l raw))
+                return i
+        loop raw !i s = let h = fromIntegral (B.unsafeHead s)
+                    in if h >= ord '0' && h <= ord '9'
+                           then loop raw (i * 10 - ord '0' + h) (B.unsafeTail s)
+                           else fail $ "not an Int: " ++ show (B.unsafeTake l raw)
+
+
+decimalX :: Int -> Parser Int
+decimalX l = do
+        raw <- gets input
+        if l < B.length raw
+            then loop raw 0 (B.unsafeTake l raw)
+            else fail $ "insufficient input for decimalX: expected " ++ show l ++ "; remaining input is: " ++ show raw
+    where
+        loop :: ByteString -> Int -> ByteString -> Parser Int
+        loop raw !i s | B.null s = do
+                put (S (B.unsafeDrop l raw))
+                return i
+        loop raw !i s = let h = fromIntegral (B.unsafeHead s)
+                    in if h >= ord '0' && h <= ord '9'
+                           then loop raw (i * 10 - ord '0' + h) (B.unsafeTail s)
+                           else fail $ "not an Int: " ++ show (B.unsafeTake l raw)
+
+
+
+decimalXS :: Int -> Parser Int
+decimalXS l = sign <*> decimalX l
+
+unsafeDecimalXS :: Int -> Parser Int
+unsafeDecimalXS l = sign <*> unsafeDecimalX l
+
+sign :: Parser (Int -> Int)
+sign = do
+    raw <- C8.head <$> take 1
+    case raw of
+        '+' -> return id
+        ' ' -> return id
+        '0' -> return id
+        '-' -> return negate
+        inv -> fail $ "Invalid sign: " ++ show inv
+{-# INLINE sign #-}
