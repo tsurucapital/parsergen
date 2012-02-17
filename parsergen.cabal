@@ -58,7 +58,7 @@ Library
        , parsec >= 3 && < 4
        , filepath >= 1.2 && < 2
        , directory >= 1.1 && < 2
-       , template-haskell >= 2.6 && < 3
+       , template-haskell >= 2.5 && < 3
 
   
   -- Modules not exported by this package.
