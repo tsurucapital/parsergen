@@ -7,10 +7,8 @@ module ParserGen.ParseQuote
     , DataConstructor (..)
     , DataField (..)
     , ParserType (..)
-    , datatypeParser
-    , parseInQ
-    , parseDatatype
-    , getQPos
+    , getDatatype
+    , getFieldWidth
     ) where
 
 
@@ -18,6 +16,8 @@ module ParserGen.ParseQuote
 import Text.Parsec hiding (spaces)
 import Text.Parsec.Pos
 import Language.Haskell.TH as TH
+import System.Directory (getCurrentDirectory)
+import System.FilePath.Posix ((</>), takeDirectory)
 
 import Control.Monad
 import Data.Char (chr)
@@ -53,16 +53,14 @@ data ParserType
     | HardcodedString String -- raw string, ex "B7014"
     deriving (Show, Eq)
 
-{-
-data EnumParser
-    = EnumParser
-    { enumTypeName   :: String
-    , enumTypePrefix :: Maybe String
-    , enumFields     :: [(String, String)]
-    , enumDefault    :: Maybe String
-    } deriving (Show)
 
--}
+
+-- get size to skip taking into account its repetition and sign if exists
+getFieldWidth :: DataField -> Int
+getFieldWidth (DataField {..}) =
+    let width = fieldWidth + if fieldParser == SignedParser then 1 else 0
+        times = maybe 1 id fieldRepeat
+    in width * times
 
 type ParserQ = ParsecT String () Q
 
@@ -139,6 +137,18 @@ type ParserQ = ParsecT String () Q
 --  will generate datatype for this enumeration
 
 -- }}}
+
+getDatatype :: FilePath -> Q Datatype
+getDatatype templateName = getTemplate templateName >>= parseDatatype
+
+getTemplate :: FilePath -> Q (SourcePos, String)
+getTemplate templateName = do
+    filename <- loc_filename <$> location
+    pwd <- runIO $ getCurrentDirectory
+    let templatePath = (takeDirectory $ pwd </> filename) </> templateName
+    body <- runIO $ readFile templatePath
+    return (newPos templateName 1 1, body)
+
 
 getQPos :: Q SourcePos
 getQPos = do

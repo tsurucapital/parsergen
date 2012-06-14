@@ -1,48 +1,29 @@
 {-# OPTIONS -Wall #-}
-{-# LANGUAGE TemplateHaskell, QuasiQuotes, RecordWildCards, OverloadedStrings, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell, QuasiQuotes, RecordWildCards, OverloadedStrings #-}
 
 module ParserGen.Gen
     ( genDataTypeFromFile
     , genParserFromFile
-    , genTrace
     )
 where
 
-import Language.Haskell.TH as TH
---import Language.Haskell.TH.Quote
-
 import ParserGen.ParseQuote
-import Control.Applicative
-import Data.Char (isUpper, toLower)
-import Data.Maybe (catMaybes, isNothing)
-import qualified Data.ByteString.Char8 as C8
-import Control.Monad
-import System.Directory
-import System.FilePath.Posix
-
 import ParserGen.Wrap as W
 import qualified ParserGen.Parser as P
 
-import Text.Parsec.Pos
+import Language.Haskell.TH as TH
+import Control.Applicative
+import Control.Monad
+import Data.Char (isUpper, toLower)
+import Data.List
+import Data.Maybe (catMaybes, isNothing)
+import qualified Data.ByteString.Char8 as C8
 
 genDataTypeFromFile :: FilePath -> Q [Dec]
-genDataTypeFromFile templateName = getTemplate templateName >>= parseDatatype >>= mkDataDecl >>= return . (:[])
+genDataTypeFromFile templateName = getDatatype templateName >>= mkDataDecl >>= return . (:[])
 
 genParserFromFile :: FilePath -> Q [Dec]
-genParserFromFile templateName = getTemplate templateName >>= parseDatatype >>= mkParsersDecls
-
-getTemplate :: FilePath -> Q (SourcePos, String)
-getTemplate templateName = do
-    filename <- loc_filename <$> location
-    pwd <- runIO $ getCurrentDirectory
-    let templatePath = (takeDirectory $ pwd </> filename) </> templateName
-    body <- runIO $ readFile templatePath
-    return (newPos templateName 1 1, body)
-
-
-genTrace :: [Dec] -> Q [Dec]
-genTrace decs = runIO (putStrLn $ pprint decs) >> return decs
-
+genParserFromFile templateName = getDatatype templateName >>= mkParsersDecls
 
 mkDataDecl :: Datatype -> Q Dec
 mkDataDecl (Datatype {..}) = do
@@ -166,11 +147,6 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
                 ignored :: DataField -> Bool
                 ignored (DataField {..}) = isNothing fieldName && fieldParser `elem` [SignedParser, UnsignedParser]
 
-                -- get size to skip taking into account its repetition and sign if exists
-                getFieldWidth :: DataField -> Int
-                getFieldWidth (DataField {..}) = let width = fieldWidth + if fieldParser == SignedParser then 1 else 0
-                                                     times = maybe 1 id fieldRepeat
-                                                 in width * times
                 -- }}}
                 -- }}}
 
