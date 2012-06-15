@@ -13,7 +13,7 @@ Version:             0.1.0
 Synopsis:            Template haskell generator for splitting bytestring into fixed-width fields
 
 -- A longer description of the package.
--- Description:         
+-- Description:
 
 -- The license under which the package is released.
 License:             BSD3
@@ -29,7 +29,7 @@ Author:              Michael Baikov
 Maintainer:          manpacket@gmail.com
 
 -- A copyright notice.
--- Copyright:           
+-- Copyright:
 
 Category:            Data
 
@@ -37,7 +37,7 @@ Build-type:          Simple
 
 -- Extra files to be distributed with the package, such as examples or
 -- a README.
--- Extra-source-files:  
+-- Extra-source-files:
 
 -- Constraint on the version of Cabal needed to build this package.
 Cabal-version:       >=1.2
@@ -45,14 +45,15 @@ Cabal-version:       >=1.2
 
 Library
   -- Modules exported by the library.
-  Exposed-modules:     
+  Exposed-modules:
         ParserGen.Gen
       , ParserGen.Wrap
       , ParserGen.Parser
       , ParserGen.ParseQuote
-  
+      , ParserGen.Repack
+
   -- Packages needed in order to build this package.
-  Build-depends:       
+  Build-depends:
        base >= 3 && < 5
        , bytestring
        , parsec >= 3 && < 4
@@ -60,10 +61,9 @@ Library
        , directory >= 1.1 && < 2
        , template-haskell >= 2.5 && < 3
 
-  
+
   -- Modules not exported by this package.
-  -- Other-modules:       
-  
+  -- Other-modules:
+
   -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
-  -- Build-tools:         
-  
+  -- Build-tools:
