@@ -2,7 +2,11 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, RecordWildCards #-}
 
 module ParserGen.Repack
-    ( genRepackFromFile ) where
+    ( genRepackFromFile
+    , putDecimalX
+    , putDecimalXS
+    , putTS8
+    ) where
 
 import ParserGen.ParseQuote
 
@@ -28,6 +32,26 @@ data PackElement
 --    | PackIssue
 --    | PackTS
     deriving (Show)
+
+
+
+putDecimalX :: Int -> Int -> C8.ByteString
+putDecimalX l i = C8.pack $ putDecimalX_S l i
+
+putDecimalXS :: Int ->  Int -> C8.ByteString
+putDecimalXS l i | i >= 0 = C8.pack $ ' ' : putDecimalX_S l i
+putDecimalXS l i | otherwise = C8.pack $ '-' : putDecimalX_S l (negate i)
+
+putTS8 :: Int -> Int -> Int -> Int -> C8.ByteString
+putTS8 h m s u = C8.pack $ concat [ putDecimalX_S 2 h
+                                  , putDecimalX_S 2 m
+                                  , putDecimalX_S 2 s
+                                  , putDecimalX_S 2 u
+                                  ]
+-- helper function
+putDecimalX_S :: Int -> Int -> String
+putDecimalX_S l i | i >= 0 = reverse . take l . reverse $ (replicate l '0' ++ show i)
+putDecimalX_S _ i = error "ParserGen.Repack: Can't put negative decimal X: " ++ show i
 
 
 
