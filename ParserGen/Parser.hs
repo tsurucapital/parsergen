@@ -139,7 +139,8 @@ ensureBytesLeft l = do
     s <- gets input
     if B.length s == l
         then return ()
-        else fail $ "Unexpected length"
+        else fail $ "Unexpected length: expected " ++ show l ++
+                ", but got " ++ show (B.length s)
 {-# INLINE ensureBytesLeft #-}
 
 -- | Consume @n@ bytes of input without checking if it's available

@@ -15,7 +15,6 @@ import Language.Haskell.TH as TH
 import Control.Applicative
 import Control.Monad
 import Data.Char (isUpper, toLower)
-import Data.List
 import Data.Maybe (catMaybes, isNothing)
 import qualified Data.ByteString.Char8 as C8
 
@@ -23,7 +22,9 @@ genDataTypeFromFile :: FilePath -> Q [Dec]
 genDataTypeFromFile templateName = getDatatype templateName >>= mkDataDecl >>= return . (:[])
 
 genParserFromFile :: FilePath -> Q [Dec]
-genParserFromFile templateName = getDatatype templateName >>= mkParsersDecls
+genParserFromFile templateName = do
+    dt <- getDatatype templateName
+    (++) <$> mkParsersDecls dt <*> mkWidthDecls dt
 
 mkDataDecl :: Datatype -> Q Dec
 mkDataDecl (Datatype {..}) = do
@@ -60,7 +61,7 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
         mkConstrParser :: String -> DataConstructor -> Q [Dec]
         mkConstrParser name dc@(DataConstructor {..}) = do
                 fields <- mapM mkField (fuseIgnores constrFields)
-                ensure <- ensureBytes $ sum . map getFieldWidth $ constrFields
+                ensure <- ensureBytes $ getConstructorWidth dc
                 t <- [t| P.Parser |]
 
                 return $ [ SigD funName (AppT t (ConT . mkName $ name ))
@@ -154,6 +155,18 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
         getTypeName :: Type -> String
         getTypeName (ConT n) = nameBase n
         getTypeName t = error $ "Invalid type in size based parser: " ++ show t
+
+mkWidthDecls :: Datatype -> Q [Dec]
+mkWidthDecls (Datatype {..}) = concat <$> mapM mkConstrWidthDecl typeConstrs
+    where
+        mkConstrWidthDecl :: DataConstructor -> Q [Dec]
+        mkConstrWidthDecl dc@(DataConstructor {..}) = return
+                [ SigD name (ConT $ mkName "Int")
+                , FunD name [Clause [] (NormalB $ LitE $ IntegerL width) []]
+                ]
+            where
+                width = fromIntegral $ getConstructorWidth dc
+                name  = mkName $ "widthFor" ++ constrName
 
 -- try to derive size based parser for given type
 deriveSizeParserFor :: String -> Int -> Q Exp

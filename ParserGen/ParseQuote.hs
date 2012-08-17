@@ -9,6 +9,7 @@ module ParserGen.ParseQuote
     , ParserType (..)
     , getDatatype
     , getFieldWidth
+    , getConstructorWidth
     ) where
 
 
@@ -19,7 +20,6 @@ import Language.Haskell.TH as TH
 import System.Directory (getCurrentDirectory)
 import System.FilePath.Posix ((</>), takeDirectory)
 
-import Control.Monad
 import Data.Char (chr)
 import Control.Applicative hiding (many, (<|>), optional)
 
@@ -61,6 +61,9 @@ getFieldWidth (DataField {..}) =
     let width = fieldWidth + if fieldParser == SignedParser then 1 else 0
         times = maybe 1 id fieldRepeat
     in width * times
+
+getConstructorWidth :: DataConstructor -> Int
+getConstructorWidth = sum . map getFieldWidth . constrFields
 
 type ParserQ = ParsecT String () Q
 
