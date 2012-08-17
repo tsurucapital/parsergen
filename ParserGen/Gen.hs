@@ -4,6 +4,7 @@
 module ParserGen.Gen
     ( genDataTypeFromFile
     , genParserFromFile
+    , genWidthFromFile
     )
 where
 
@@ -22,9 +23,10 @@ genDataTypeFromFile :: FilePath -> Q [Dec]
 genDataTypeFromFile templateName = getDatatype templateName >>= mkDataDecl >>= return . (:[])
 
 genParserFromFile :: FilePath -> Q [Dec]
-genParserFromFile templateName = do
-    dt <- getDatatype templateName
-    (++) <$> mkParsersDecls dt <*> mkWidthDecls dt
+genParserFromFile = getDatatype >=> mkParsersDecls
+
+genWidthFromFile :: FilePath -> Q [Dec]
+genWidthFromFile = getDatatype >=> mkWidthDecls
 
 mkDataDecl :: Datatype -> Q Dec
 mkDataDecl (Datatype {..}) = do
@@ -156,18 +158,6 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
         getTypeName (ConT n) = nameBase n
         getTypeName t = error $ "Invalid type in size based parser: " ++ show t
 
-mkWidthDecls :: Datatype -> Q [Dec]
-mkWidthDecls (Datatype {..}) = concat <$> mapM mkConstrWidthDecl typeConstrs
-    where
-        mkConstrWidthDecl :: DataConstructor -> Q [Dec]
-        mkConstrWidthDecl dc@(DataConstructor {..}) = return
-                [ SigD name (ConT $ mkName "Int")
-                , FunD name [Clause [] (NormalB $ LitE $ IntegerL width) []]
-                ]
-            where
-                width = fromIntegral $ getConstructorWidth dc
-                name  = mkName $ "widthFor" ++ constrName
-
 -- try to derive size based parser for given type
 deriveSizeParserFor :: String -> Int -> Q Exp
 deriveSizeParserFor fieldTypeName s = do
@@ -220,3 +210,15 @@ deriveSignSizeParserFor fieldTypeName s = do
 count :: Monad m => Int -> m a -> m [a]
 count n p = sequence (replicate n p)
 {-# INLINE count #-}
+
+mkWidthDecls :: Datatype -> Q [Dec]
+mkWidthDecls (Datatype {..}) = concat <$> mapM mkConstrWidthDecl typeConstrs
+    where
+        mkConstrWidthDecl :: DataConstructor -> Q [Dec]
+        mkConstrWidthDecl dc@(DataConstructor {..}) = return
+                [ SigD name (ConT $ mkName "Int")
+                , FunD name [Clause [] (NormalB $ LitE $ IntegerL width) []]
+                ]
+            where
+                width = fromIntegral $ getConstructorWidth dc
+                name  = mkName $ "widthFor" ++ constrName
