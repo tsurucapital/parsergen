@@ -1,12 +1,9 @@
-{-# OPTIONS -Wall #-}
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, RecordWildCards, OverloadedStrings #-}
-
 module ParserGen.Gen
     ( genDataTypeFromFile
     , genParserFromFile
     , genWidthFromFile
-    )
-where
+    ) where
 
 import ParserGen.ParseQuote
 import ParserGen.Wrap as W

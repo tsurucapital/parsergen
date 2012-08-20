@@ -1,18 +1,13 @@
-{-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples #-}
-
--- |
--- Based on Data.Attoparsec.Zepto by  Bryan O'Sullivan 2011
+-- | Based on Data.Attoparsec.Zepto by  Bryan O'Sullivan 2011
 --
 -- A tiny, highly specialized combinator parser for 'B.ByteString'
 -- strings. Designed to split bytestrings into fields with fixed widths.
 --
 -- unsafe versions of the functions do not perform checks that there
 -- is enough data left in the bytestring
-
-
+{-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples #-}
 module ParserGen.Parser
-    (
-      Parser
+    ( Parser
     , parse
     , ensureBytesLeft
     , atEnd

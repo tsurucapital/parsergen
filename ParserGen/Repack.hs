@@ -1,6 +1,4 @@
-{-# OPTIONS -Wall #-}
 {-# LANGUAGE TemplateHaskell, QuasiQuotes, RecordWildCards #-}
-
 module ParserGen.Repack
     ( genRepackFromFile
     , putDecimalX

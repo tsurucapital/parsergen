@@ -1,12 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# OPTIONS -Wall #-}
-
 module ParserGen.Wrap
     ( AlphaNum (..)
     , alphaNumToBS
     , alphaNumParser
     ) where
-
 
 import Data.Char (chr, ord)
 import Data.Int (Int64)

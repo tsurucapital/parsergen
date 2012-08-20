@@ -1,7 +1,4 @@
-{-# OPTIONS -Wall #-}
 {-# LANGUAGE RecordWildCards, FlexibleContexts #-}
-
-
 module ParserGen.ParseQuote
     ( Datatype (..)
     , DataConstructor (..)
@@ -67,80 +64,6 @@ getConstructorWidth = sum . map getFieldWidth . constrFields
 
 type ParserQ = ParsecT String () Q
 
-
--- {{{
-
--- |
---
--- TypeName
---   ConstructorName [fields prefix]
---     [xN] [_]FieldName [!] FieldType FieldWidth [FieldParser]
---
---     where
---
---       TypeName
---         - name of the type itself, ex Maybe
---
---       ConstructorName
---         - name of constructor with given set of fields. if no prefix is provided
---           downcased capital letters from constructor name will be used instead
---
---       xN - number of times to repeat this matcher,
---
---       FieldName
---         - name of the field which will be used with prefix prepended
---         _ means that value this field will be ignored (will be skipped if possible or parsed)
---
---       ! - this field will be strict
---
---       FieldType
---         - type name when using existing datatype, ex Int or ByteString
---XXXXX    - $(Foo Bar) - if it's something more complicated
---
---       FieldWidth
---         - Number for size based parsing, ex 12
---           will handle type/newtype wrappers around numerical datatypes
---
---         - +Number - first character of the number will be treaded as sign,
---           ex +12 is the same as sign <*> decimalX 12
---
---         - This field is needed to perform some optimisations as well, so you have to
---           specify field width even if you going to specify FieldParser
---
---       FieldParser
---
---         - parser - will be used to parse it, result can be ignored if not needed, must be single word
---
---XXXXX    - $(parse with params) parser executed with additional params
---
-
--- enumParser
---
--- TypeName [fields prefix]
---   FieldName ("FieldValue" | _)
---
---   where
---
---     TypeName
---       - Enumeration datatype name, ex IssueClosingCode
---       - capital letters will be used as enumeration prefix,
---         ex for IssueClosingCode prefix is ICC
---
---     FieldName
---       - Name of given field, with prefix prepended
---
---     FieldValue
---       - value to match for this constructor
---
---     _ - instead of value will signify this constructor as default value for this
---         enumerator "of everything else fails...". If not specified and none of previous items
---         matched - error will be raised
---
---
---  will generate datatype for this enumeration
-
--- }}}
-
 getDatatypes :: FilePath -> Q [Datatype]
 getDatatypes templateName = getTemplate templateName >>= parseDatatypes
 
@@ -161,7 +84,7 @@ getQPos = do
                     (snd . TH.loc_start $ loc)
 
 
-parseInQ :: ParserQ v -> (SourcePos, String) -> Q v -- {{{
+parseInQ :: ParserQ v -> (SourcePos, String) -> Q v
 parseInQ p (pos, s) = do
         parseResult <- runParserT (inPosition p) () "" s
         case parseResult of
@@ -174,7 +97,6 @@ parseInQ p (pos, s) = do
                 val <- p'
                 eof
                 return val
--- }}}
 
 parseDatatypes :: (SourcePos, String) -> Q [Datatype]
 parseDatatypes = parseInQ (many1 datatypeParser)
@@ -193,7 +115,7 @@ spaces :: Stream s m Char => ParsecT s u m ()
 spaces = skipMany1 (oneOf "\t ")
 
 
-constrParser :: ParserQ DataConstructor -- {{{
+constrParser :: ParserQ DataConstructor
 constrParser = do
     _            <- try (string "  " <?> "constructor padding")
     constrName   <- identifier
@@ -202,13 +124,12 @@ constrParser = do
     constrFields <- many1 constFieldParser
 
     return DataConstructor {..}
--- }}}
 
 
 repeatFactor :: ParserQ Int
 repeatFactor = try (decimal <* char 'x') <?> "repetition factor"
 
-constFieldParser :: ParserQ DataField -- {{{
+constFieldParser :: ParserQ DataField
 constFieldParser = do
         _ <- try (string "    ") <?> "field padding"
 
@@ -240,7 +161,6 @@ constFieldParser = do
                     _ <- endofline
 
                     return DataField {..}
--- }}}
 
 
 widthSpec :: ParserQ (Bool, Int)
