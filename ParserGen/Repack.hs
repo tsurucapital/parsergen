@@ -56,7 +56,8 @@ putDecimalX_S _ i = error "ParserGen.Repack: Can't put negative decimal X: " ++ 
 
 
 genRepackFromFile :: FilePath -> Q [Dec]
-genRepackFromFile templateName = getDatatype templateName >>= mkModifiers
+genRepackFromFile templateName =
+    getDatatypes templateName >>= fmap concat . mapM mkModifiers
 
 
 mkModifiers :: Datatype -> Q [Dec]

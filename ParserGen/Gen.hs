@@ -20,13 +20,13 @@ import Data.Maybe (catMaybes, isNothing)
 import qualified Data.ByteString.Char8 as C8
 
 genDataTypeFromFile :: FilePath -> Q [Dec]
-genDataTypeFromFile templateName = getDatatype templateName >>= mkDataDecl >>= return . (:[])
+genDataTypeFromFile templateName = getDatatypes templateName >>= mapM mkDataDecl
 
 genParserFromFile :: FilePath -> Q [Dec]
-genParserFromFile = getDatatype >=> mkParsersDecls
+genParserFromFile = getDatatypes >=> fmap concat . mapM mkParsersDecls
 
 genWidthFromFile :: FilePath -> Q [Dec]
-genWidthFromFile = getDatatype >=> mkWidthDecls
+genWidthFromFile = getDatatypes >=> fmap concat . mapM mkWidthDecls
 
 mkDataDecl :: Datatype -> Q Dec
 mkDataDecl (Datatype {..}) = do

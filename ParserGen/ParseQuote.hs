@@ -7,7 +7,7 @@ module ParserGen.ParseQuote
     , DataConstructor (..)
     , DataField (..)
     , ParserType (..)
-    , getDatatype
+    , getDatatypes
     , getFieldWidth
     , getConstructorWidth
     ) where
@@ -141,8 +141,8 @@ type ParserQ = ParsecT String () Q
 
 -- }}}
 
-getDatatype :: FilePath -> Q Datatype
-getDatatype templateName = getTemplate templateName >>= parseDatatype
+getDatatypes :: FilePath -> Q [Datatype]
+getDatatypes templateName = getTemplate templateName >>= parseDatatypes
 
 getTemplate :: FilePath -> Q (SourcePos, String)
 getTemplate templateName = do
@@ -176,8 +176,8 @@ parseInQ p (pos, s) = do
                 return val
 -- }}}
 
-parseDatatype :: (SourcePos, String) -> Q Datatype
-parseDatatype = parseInQ datatypeParser
+parseDatatypes :: (SourcePos, String) -> Q [Datatype]
+parseDatatypes = parseInQ (many1 datatypeParser)
 
 datatypeParser :: ParserQ Datatype
 datatypeParser = do
@@ -185,6 +185,7 @@ datatypeParser = do
     typeName    <- identifier
     _           <- endofline
     typeConstrs <- many1 constrParser
+    _           <- many endofline
 
     return Datatype {..}
 
