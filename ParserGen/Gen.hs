@@ -148,53 +148,26 @@ mkFieldParser df@(DataField {..}) = case fieldParser of
         | getFieldIsIgnored df   -> [| P.string (C8.pack s) |]
         | otherwise              -> [| P.string (C8.pack s) >> return (C8.pack s) |]
 
--- try to derive size based parser for given type
+-- | Try to derive size based parser for given type
 deriveSizeParserFor :: String -> Int -> Q Exp
 deriveSizeParserFor fieldTypeName s = do
-        TyConI info <- recover (fail unknownType) (reify (mkName fieldTypeName))
+    (ty, cons, _) <- getTypeConsUncons fieldTypeName
+    case ty of
+        _ | ty == ''Int      -> [|$(return cons) `fmap` P.decimalX s|]
+          | ty == ''AlphaNum -> [|$(return cons) `fmap` W.alphaNumParser s|]
+          | otherwise        -> fail $
+            "Not supported type inside type/newtype " ++ fieldTypeName ++
+            ": " ++ show ty
 
-        case info of
-            TySynD _ _ (ConT synTo)
-                | synTo == ''Int         -> [| P.decimalX s |]
-                | otherwise -> fail $ "Only Int synonyms supported, not " ++ show synTo
-
-
-            NewtypeD _ _ _ (RecC constr [(unconstr, _, ConT typeFor)]) _
-                | typeFor == ''Int       -> [| $( return $ ConE constr) `fmap` P.decimalX s |]
-                | typeFor == ''AlphaNum  -> [| $( return $ ConE constr) `fmap` W.alphaNumParser s |]
-                | otherwise -> fail $ "Not supported type inside newtype: " ++ show typeFor ++ show info
-
-            NewtypeD _ _ _ (NormalC constr [(_, ConT typeFor)]) _
-                | typeFor == ''Int       -> [| $( return $ ConE constr) `fmap` P.decimalX s |]
-                | typeFor == ''AlphaNum  -> [| $( return $ ConE constr) `fmap` W.alphaNumParser s |]
-                | otherwise -> fail $ "Not supported type inside newtype: " ++ show typeFor
-
-            _ -> fail $ "Size based parser only supported for type and newtype declarations: " ++ show info
-    where
-        unknownType = "Type `" ++ fieldTypeName ++ "' is undefined. " ++ cantDerive
-        cantDerive  = "Can't derive size based parser."
-
-
-
-
--- try to derive size based parser for given type
+-- | Try to derive size based parser for given type
 deriveSignSizeParserFor:: String -> Int -> Q Exp
 deriveSignSizeParserFor fieldTypeName s = do
-        TyConI info <- recover (fail unknownType) (reify (mkName fieldTypeName))
-
-        case info of
-            TySynD _ _ (ConT synTo)
-                | synTo == ''Int         -> [| P.decimalXS s |]
-                | otherwise -> fail $ "Only Int synonyms supported, not " ++ show synTo
-
-            NewtypeD _ _ _ (NormalC constr [(_, ConT typeFor)]) _
-                | typeFor == ''Int       -> [| $( return $ ConE constr) `fmap` P.decimalXS s |]
-                | otherwise -> fail $ "Not supported type inside newtype: " ++ show typeFor
-
-            _ -> fail $ "Size based parser only supported for type and newtype declarations: " ++ show info
-    where
-        unknownType = "Type `" ++ fieldTypeName ++ "' is undefined. " ++ cantDerive
-        cantDerive  = "Can't derive size based parser."
+    (ty, cons, _) <- getTypeConsUncons fieldTypeName
+    case ty of
+        _ | ty == ''Int -> [|$(return cons) `fmap` P.decimalXS s|]
+          | otherwise   -> fail $
+            "Not supported type inside type/newtype " ++ fieldTypeName ++
+            ": " ++ show ty
 
 -- | The following function takes a type name and generates a proper name,
 -- a constructor and an unconstror for it.
