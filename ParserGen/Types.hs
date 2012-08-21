@@ -12,6 +12,7 @@ module ParserGen.Types
     , getFieldWidth
     , getFieldRepeatType
     , getFieldHasRepeat
+    , getFieldIsIgnored
 
     , ParserType (..)
 
@@ -19,7 +20,7 @@ module ParserGen.Types
     , RepackerField (..)
     ) where
 
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, isNothing)
 import Language.Haskell.TH (Exp, Type (..))
 
 data Decl
@@ -73,6 +74,9 @@ getFieldRepeatType df
 
 getFieldHasRepeat :: DataField -> Bool
 getFieldHasRepeat = isJust . fieldRepeat
+
+getFieldIsIgnored :: DataField -> Bool
+getFieldIsIgnored = isNothing . fieldName
 
 data ParserType
     = CustomParser    Exp    -- user provided parser, ex: issue

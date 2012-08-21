@@ -9,7 +9,7 @@ import Language.Haskell.TH as TH
 import Control.Applicative
 import Control.Monad
 import Data.Char (isUpper, toLower)
-import Data.Maybe (catMaybes, isNothing)
+import Data.Maybe (catMaybes)
 import qualified Data.ByteString.Char8 as C8
 
 import ParserGen.ParseQuote
@@ -74,7 +74,7 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
                 funName = mkName $ "parserFor" ++ constrName
 
                 mkField :: DataField -> Q Stmt
-                mkField df@(DataField {..}) = parser >>= adjustRepeat >>= return . BindS pat
+                mkField df@(DataField {..}) = mkFieldParser df >>= adjustRepeat >>= return . BindS pat
                     where
 
                         adjustRepeat :: Exp -> Q Exp
@@ -86,25 +86,6 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
                         pat = case getFieldName dc df of
                             Just n  -> VarP n
                             Nothing -> WildP
-
-                        parser :: Q Exp
-                        parser = case fieldParser of
-                            CustomParser p    -> return p
-                            UnsignedParser    -> case getTypeName fieldType of
-                                "()"              -> [| P.skip     fieldWidth |]
-                                "ByteString"      -> [| P.take     fieldWidth |]
-                                "Int"             -> [| P.decimalX fieldWidth |]
-                                x                 -> deriveSizeParserFor x fieldWidth
-                            SignedParser      -> case getTypeName fieldType of
-                                "Int"             -> [| P.decimalXS fieldWidth |]
-                                x                 -> deriveSignSizeParserFor x fieldWidth
-
-                            HardcodedString s -> case pat of
-                                _ | length s /= fieldWidth -> fail $ "Width of " ++ show s ++ " is not " ++ show fieldWidth ++ "!"
-                                -- if string value is ignored - no need to return it
-                                WildP -> [| P.string (C8.pack s) |]
-                                _     -> [| P.string (C8.pack s) >> return (C8.pack s) |]
-
 
                 atEndQ :: Q Stmt
                 atEndQ = [| P.atEnd >>= guard |] >>= return . BindS WildP
@@ -124,7 +105,7 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
                 fuseIgnores :: [DataField] -> [DataField]
 
                 -- join two sequential skips into one
-                fuseIgnores (a:b:rest) | ignored a && ignored b = fuseIgnores $ fused : rest
+                fuseIgnores (a:b:rest) | getFieldIsIgnored a && getFieldIsIgnored b = fuseIgnores $ fused : rest
                     where
                         fused = DataField { fieldName   = Nothing
                                           , fieldStrict = False
@@ -134,17 +115,13 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
                                           , fieldWidth  = getFieldWidth a + getFieldWidth b
                                           }
                 -- transform skips to cheapest possible version
-                fuseIgnores (x:xs) | ignored x = transformed : fuseIgnores xs
+                fuseIgnores (x:xs) | getFieldIsIgnored x = transformed : fuseIgnores xs
                     where
                         transformed = x { fieldType = (ConT . mkName $ "()" ) }
 
                 -- transform rest of the stream
                 fuseIgnores (x:xs) = x : fuseIgnores xs
                 fuseIgnores [] = []
-
-                -- size based and ignored
-                ignored :: DataField -> Bool
-                ignored (DataField {..}) = isNothing fieldName && fieldParser `elem` [SignedParser, UnsignedParser]
 
                 -- }}}
                 -- }}}
@@ -153,6 +130,29 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
         getTypeName :: Type -> String
         getTypeName (ConT n) = nameBase n
         getTypeName t = error $ "Invalid type in size based parser: " ++ show t
+
+mkFieldParser :: DataField -> Q Exp
+mkFieldParser df@(DataField {..}) = case fieldParser of
+    CustomParser p    -> return p
+    UnsignedParser    -> case getTypeName fieldType of
+        "()"              -> [| P.skip     fieldWidth |]
+        "ByteString"      -> [| P.take     fieldWidth |]
+        "Int"             -> [| P.decimalX fieldWidth |]
+        x                 -> deriveSizeParserFor x fieldWidth
+    SignedParser      -> case getTypeName fieldType of
+        "Int"             -> [| P.decimalXS fieldWidth |]
+        x                 -> deriveSignSizeParserFor x fieldWidth
+
+    HardcodedString s
+        | length s /= fieldWidth -> fail $ "Width of " ++ show s ++ " is not " ++ show fieldWidth ++ "!"
+        -- if string value is ignored - no need to return it
+        | getFieldIsIgnored df   -> [| P.string (C8.pack s) |]
+        | otherwise              -> [| P.string (C8.pack s) >> return (C8.pack s) |]
+
+  where
+    getTypeName :: Type -> String
+    getTypeName (ConT n) = nameBase n
+    getTypeName t = error $ "Invalid type in size based parser: " ++ show t
 
 -- try to derive size based parser for given type
 deriveSizeParserFor :: String -> Int -> Q Exp
