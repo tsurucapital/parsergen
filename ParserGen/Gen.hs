@@ -126,10 +126,9 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
                 -- }}}
                 -- }}}
 
-
-        getTypeName :: Type -> String
-        getTypeName (ConT n) = nameBase n
-        getTypeName t = error $ "Invalid type in size based parser: " ++ show t
+getTypeName :: Type -> String
+getTypeName (ConT n) = nameBase n
+getTypeName t = error $ "Invalid type in size based parser: " ++ show t
 
 mkFieldParser :: DataField -> Q Exp
 mkFieldParser df@(DataField {..}) = case fieldParser of
@@ -148,11 +147,6 @@ mkFieldParser df@(DataField {..}) = case fieldParser of
         -- if string value is ignored - no need to return it
         | getFieldIsIgnored df   -> [| P.string (C8.pack s) |]
         | otherwise              -> [| P.string (C8.pack s) >> return (C8.pack s) |]
-
-  where
-    getTypeName :: Type -> String
-    getTypeName (ConT n) = nameBase n
-    getTypeName t = error $ "Invalid type in size based parser: " ++ show t
 
 -- try to derive size based parser for given type
 deriveSizeParserFor :: String -> Int -> Q Exp
@@ -201,6 +195,48 @@ deriveSignSizeParserFor fieldTypeName s = do
     where
         unknownType = "Type `" ++ fieldTypeName ++ "' is undefined. " ++ cantDerive
         cantDerive  = "Can't derive size based parser."
+
+-- | The following function takes a type name and generates a proper name,
+-- a constructor and an unconstror for it.
+--
+-- Example: given the type
+--
+-- > data Wrap = Wrap Int
+--
+-- We will generate a constructor expression which is equivalent to
+--
+-- > Wrap :: Int -> Wrap
+--
+-- and an unconstructor expression equivalent to
+--
+-- > \w -> let Wrap uw = w in uw :: Wrap -> Int
+--
+getTypeConsUncons :: String -> Q (Name, Exp, Exp)
+getTypeConsUncons name = do
+    TyConI info <- recover (fail unknownType) (reify (mkName name))
+    id'         <- [|id|]
+    case info of
+        TySynD _ _ (ConT synTo) ->
+            return (synTo, id', id')
+
+        NewtypeD _ _ _ (RecC constr [(unconstr, _, ConT typeFor)]) _ ->
+            return (typeFor, ConE constr, VarE unconstr)
+
+        NewtypeD _ _ _ (NormalC constr [(_, ConT typeFor)]) _ -> do
+
+            -- I don't think there's a simpler way?
+            w  <- newName "w"
+            uw <- newName "uw"
+            let unconstr = LamE [VarP w] (LetE
+                    [ValD (ConP constr [VarP uw]) (NormalB (VarE w)) []]
+                    (VarE uw))
+
+            return (typeFor, ConE constr, unconstr)
+
+        _ -> fail $
+            "Can't deal with " ++ name ++ ", must be a type synonym or newtype"
+  where
+    unknownType = "Type `" ++ name ++ "' is undefined."
 
 -- | Apply the given action repeatedly, returning every result.
 count :: Monad m => Int -> m a -> m [a]
