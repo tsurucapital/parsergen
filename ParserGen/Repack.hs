@@ -5,16 +5,19 @@
 {-# LANGUAGE TemplateHaskell #-}
 module ParserGen.Repack
     ( genRepackFromFile
+
+    , putDecimalX
+    , putDecimalXS
+    , putTS8
     ) where
 
 import Control.Applicative
-import Control.Monad (foldM, guard)
+import Control.Monad (foldM)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
-import Data.Maybe (fromMaybe, listToMaybe, mapMaybe)
-import Language.Haskell.TH as TH
-import Language.Haskell.TH.Syntax (Lift)
-import Unsafe.Coerce (unsafeCoerce)
+import qualified Data.ByteString.Char8 as BC
+import Data.Maybe (fromMaybe, listToMaybe)
+import Language.Haskell.TH
 
 import ParserGen.ParseQuote
 
@@ -79,11 +82,35 @@ mkRepackCmds dc repacks = fuseSkips $ map mkRepackCmd $ constrFields dc
         ]
 
 executeRepackCmd :: Exp -> RepackCmd -> Q Exp
-executeRepackCmd exp (Skip n) =
-    [| let (s, ps)      = $(return exp)
+executeRepackCmd e (Skip n) =
+    [| let (s, ps)      = $(return e)
            (this, next) = B.splitAt n s
        in (next, ps ++ [this]) |]
-executeRepackCmd exp (Repack n (RepackerField _ f) name) =
-    [| let (s, ps)      = $(return exp)
+executeRepackCmd e (Repack n (RepackerField _ f) name) =
+    [| let (s, ps)      = $(return e)
            (this, next) = B.splitAt n s
        in (next, ps ++ $(return f) $(return $ VarE name)) |]
+
+
+putDecimalX :: Int -> Int -> [ByteString]
+putDecimalX l i = [BC.pack $ putDecimalX_S l i]
+
+putDecimalXS :: Int ->  Int -> [ByteString]
+putDecimalXS l i
+    | i >= 0    = [BC.pack $ ' ' : putDecimalX_S l i]
+    | otherwise = [BC.pack $ '-' : putDecimalX_S l (negate i)]
+
+putTS8 :: Int -> Int -> Int -> Int -> [ByteString]
+putTS8 h m s u = map BC.pack
+    [ putDecimalX_S 2 h
+    , putDecimalX_S 2 m
+    , putDecimalX_S 2 s
+    , putDecimalX_S 2 u
+    ]
+
+-- helper function
+putDecimalX_S :: Int -> Int -> String
+putDecimalX_S l i
+    | i >= 0    = reverse . take l . reverse $ (replicate l '0' ++ show i)
+    | otherwise =
+        error "ParserGen.Repack: Can't put negative decimal X: " ++ show i
