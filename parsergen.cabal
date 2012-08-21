@@ -43,6 +43,7 @@ Library
       , ParserGen.Parser
       , ParserGen.ParseQuote
       , ParserGen.Repack
+      , ParserGen.Types
 
   Build-depends:
        base >= 3 && < 5

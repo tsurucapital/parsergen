@@ -98,6 +98,7 @@ module ParserGen
     , module ParserGen.ParseQuote
     , module ParserGen.Parser
     , module ParserGen.Repack
+    , module ParserGen.Types
     , module ParserGen.Wrap
     ) where
 
@@ -105,4 +106,5 @@ import ParserGen.Gen
 import ParserGen.ParseQuote
 import ParserGen.Parser
 import ParserGen.Repack
+import ParserGen.Types
 import ParserGen.Wrap

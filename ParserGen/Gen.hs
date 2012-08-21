@@ -5,16 +5,17 @@ module ParserGen.Gen
     , genWidthFromFile
     ) where
 
-import ParserGen.ParseQuote
-import ParserGen.Wrap as W
-import qualified ParserGen.Parser as P
-
 import Language.Haskell.TH as TH
 import Control.Applicative
 import Control.Monad
 import Data.Char (isUpper, toLower)
 import Data.Maybe (catMaybes, isNothing)
 import qualified Data.ByteString.Char8 as C8
+
+import ParserGen.ParseQuote
+import qualified ParserGen.Parser as P
+import ParserGen.Types
+import ParserGen.Wrap as W
 
 genDataTypeFromFile :: FilePath -> Q [Dec]
 genDataTypeFromFile templateName = getDatatypes templateName >>= mapM mkDataDecl
@@ -39,9 +40,7 @@ mkDataDecl (Datatype {..}) = do
 mkFieldDef :: DataConstructor -> DataField -> Q (Maybe (Name, Strict, Type))
 mkFieldDef dc@(DataConstructor {..}) df@(DataField {..}) = return $ do
         name <- getFieldName dc df
-        case fieldRepeat of
-            Nothing -> return (name, strict, fieldType)
-            _       -> return (name, strict, AppT ListT fieldType)
+        return (name, strict, getFieldRepeatType df)
     where
         strict :: Strict
         strict = if fieldStrict then IsStrict else NotStrict

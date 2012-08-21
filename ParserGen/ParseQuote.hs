@@ -1,22 +1,8 @@
 {-# LANGUAGE RecordWildCards, FlexibleContexts #-}
 module ParserGen.ParseQuote
-    ( Decl (..)
-
-    , Datatype (..)
-    , DataConstructor (..)
-    , DataField (..)
-    , ParserType (..)
-
-    , Repacker (..)
-    , RepackerField (..)
-
-    , getDecls
-    , unzipDecls
+    ( getDecls
     , getDatatypes
     , getRepackers
-
-    , getFieldWidth
-    , getConstructorWidth
     ) where
 
 
@@ -32,63 +18,9 @@ import System.FilePath.Posix ((</>), takeDirectory)
 import Data.Char (chr)
 import Control.Applicative hiding (many, (<|>), optional)
 
+import ParserGen.Types
+
 import Debug.Trace
-
-data Decl
-    = DatatypeDecl Datatype
-    | RepackerDecl Repacker
-    deriving (Show)
-
-data Datatype
-    = Datatype
-    { typeName     :: String
-    , typeConstrs  :: [DataConstructor]
-    } deriving (Show)
-
-data DataConstructor
-    = DataConstructor
-    { constrName   :: String
-    , constrPrefix :: Maybe String
-    , constrFields :: [DataField]
-    } deriving (Show)
-
-data DataField
-    = DataField
-    { fieldName    :: Maybe String
-    , fieldRepeat  :: Maybe Int
-    , fieldType    :: Type
-    , fieldStrict  :: Bool
-    , fieldWidth   :: Int
-    , fieldParser  :: ParserType
-    } deriving (Show)
-
-data ParserType
-    = CustomParser    Exp    -- user provided parser, ex: issue
-    | UnsignedParser         -- type/newtype wrapper around supported datatypes
-    | SignedParser           -- type/newtype wrapper around numerical datatypes only
-    | HardcodedString String -- raw string, ex "B7014"
-    deriving (Show, Eq)
-
-data Repacker = Repacker
-    { repackerName        :: String
-    , repackerConstructor :: String
-    , repackerFields      :: [RepackerField]
-    } deriving (Show)
-
-data RepackerField = RepackerField
-    { repackerFieldName     :: String
-    , repackerFieldUnparser :: Exp
-    } deriving (Show)
-
--- get size to skip taking into account its repetition and sign if exists
-getFieldWidth :: DataField -> Int
-getFieldWidth (DataField {..}) =
-    let width = fieldWidth + if fieldParser == SignedParser then 1 else 0
-        times = maybe 1 id fieldRepeat
-    in width * times
-
-getConstructorWidth :: DataConstructor -> Int
-getConstructorWidth = sum . map getFieldWidth . constrFields
 
 type ParserQ = ParsecT String () Q
 
@@ -97,12 +29,6 @@ getDecls templateName = do
     tpl  <- getTemplate templateName
     dcls <- parseDecls tpl
     traceShow dcls $ return dcls
-
-unzipDecls :: [Decl] -> ([Datatype], [Repacker])
-unzipDecls decls =
-    ( [d | DatatypeDecl d <- decls]
-    , [r | RepackerDecl r <- decls]
-    )
 
 getDatatypes :: FilePath -> Q [Datatype]
 getDatatypes = fmap (fst . unzipDecls) . getDecls

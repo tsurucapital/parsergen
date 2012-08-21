@@ -20,6 +20,7 @@ import Data.Maybe (fromMaybe, listToMaybe)
 import Language.Haskell.TH
 
 import ParserGen.ParseQuote
+import ParserGen.Types
 
 genRepackFromFile :: FilePath -> Q [Dec]
 genRepackFromFile templateName = do
@@ -57,13 +58,13 @@ mkRepacker dts (Repacker rname cname cfields) = do
 
 getFieldType :: String -> DataConstructor -> Type
 getFieldType n dc =
-    case [fieldType f | f <- constrFields dc, fieldName f == Just n] of
+    case [getFieldRepeatType f | f <- constrFields dc, fieldName f == Just n] of
         [t] -> t
         _   -> error $ constrName dc ++ " has no field " ++ n
 
 data RepackCmd
     = Skip Int
-    | Repack Int RepackerField Name
+    | Repack DataField Exp Name
     deriving (Show)
 
 fuseSkips :: [RepackCmd] -> [RepackCmd]
@@ -76,7 +77,7 @@ mkRepackCmds dc repacks = fuseSkips $ map mkRepackCmd $ constrFields dc
   where
     mkRepackCmd :: DataField -> RepackCmd
     mkRepackCmd df = fromMaybe (Skip $ getFieldWidth df) $ listToMaybe
-        [ Repack (getFieldWidth df) rf n
+        [ Repack df (repackerFieldUnparser rf) n
         | (rf, n) <- repacks
         , fieldName df == Just (repackerFieldName rf)
         ]
@@ -86,10 +87,14 @@ executeRepackCmd e (Skip n) =
     [| let (s, ps)      = $(return e)
            (this, next) = B.splitAt n s
        in (next, ps ++ [this]) |]
-executeRepackCmd e (Repack n (RepackerField _ f) name) =
-    [| let (s, ps)      = $(return e)
-           (this, next) = B.splitAt n s
-       in (next, ps ++ $(return f) $(return $ VarE name)) |]
+executeRepackCmd e (Repack df f name) = do
+    repeatedF <- if r then [|concatMap $(return f)|] else return f
+    [| let (s, ps)         = $(return e)
+           (this, next)    = B.splitAt n s
+       in (next, ps ++ $(return repeatedF) $(return $ VarE name)) |]
+  where
+    n = getFieldWidth df
+    r = getFieldHasRepeat df
 
 
 putDecimalX :: Int -> Int -> [ByteString]
