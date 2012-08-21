@@ -4,13 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 module ParserGen.Repack
-    ( RepackConstructor
-    , repackConstructor
-
-    , RepackField
-    , repackField
-
-    , genRepackFromFile
+    ( genRepackFromFile
     ) where
 
 import Control.Applicative
@@ -24,46 +18,13 @@ import Unsafe.Coerce (unsafeCoerce)
 
 import ParserGen.ParseQuote
 
-import Debug.Trace
+genRepackFromFile :: FilePath -> Q [Dec]
+genRepackFromFile templateName = do
+    (dts, rs) <- unzipDecls <$> getDecls templateName
+    fmap concat $ mapM (mkRepacker dts) rs
 
-data RepackConstructor = RepackConstructor
-    { repackConstrName   :: String
-    , repackConstrSuffix :: String
-    , repackConstrFields :: [RepackField]
-    } deriving (Show)
-
-repackConstructor :: String -> String -> [RepackField] -> RepackConstructor
-repackConstructor = RepackConstructor
-
-data RepackField = RepackField
-    { repackFieldName      :: String
-    , repackFieldTransform :: ExpQ
-    }
-
-instance Show RepackField where
-    show (RepackField name _) = "(RepackField " ++ show name ++ " _)"
-
-repackField :: String -> ExpQ -> RepackField
-repackField name exp = RepackField name exp
-
-class Repackable a where
-    repack :: a -> [ByteString]  -- TODO blaze builder
-
-instance Repackable a => Repackable [a] where
-    repack = concat . map repack
-    {-# INLINE repack #-}
-
-instance Repackable ByteString where
-    repack = return
-    {-# INLINE repack #-}
-
-genRepackFromFile :: FilePath -> [RepackConstructor] -> Q [Dec]
-genRepackFromFile templateName rcs = do
-    dts <- getDatatypes templateName
-    fmap concat $ mapM (mkRepacker dts) rcs
-
-mkRepacker :: [Datatype] -> RepackConstructor -> Q [Dec]
-mkRepacker dts (RepackConstructor cname csuffix cfields) = do
+mkRepacker :: [Datatype] -> Repacker -> Q [Dec]
+mkRepacker dts (Repacker rname cname cfields) = do
     withNames <- mapM (\cf -> (,) cf <$> newName "p") cfields
     let repackCmds = mkRepackCmds dc withNames
 
@@ -82,13 +43,13 @@ mkRepacker dts (RepackConstructor cname csuffix cfields) = do
             ]
         ]
   where
-    repackerName = mkName $ "repackerFor" ++ cname ++ csuffix
+    repackerName = mkName rname
 
     dc = case [c | dt <- dts, c <- typeConstrs dt, constrName c == cname] of
         [x] -> x
         _   -> error $ "No genparser for constructor " ++ cname
 
-    mkType (RepackField name _) t =
+    mkType (RepackerField name _) t =
         AppT (AppT ArrowT (getFieldType name dc)) t
 
 getFieldType :: String -> DataConstructor -> Type
@@ -99,7 +60,7 @@ getFieldType n dc =
 
 data RepackCmd
     = Skip Int
-    | Repack Int RepackField Name
+    | Repack Int RepackerField Name
     deriving (Show)
 
 fuseSkips :: [RepackCmd] -> [RepackCmd]
@@ -107,14 +68,14 @@ fuseSkips (Skip a : Skip b : rcs) = fuseSkips $ Skip (a + b) : rcs
 fuseSkips (r      : rcs)          = r : fuseSkips rcs
 fuseSkips []                      = []
 
-mkRepackCmds :: DataConstructor -> [(RepackField, Name)] -> [RepackCmd]
+mkRepackCmds :: DataConstructor -> [(RepackerField, Name)] -> [RepackCmd]
 mkRepackCmds dc repacks = fuseSkips $ map mkRepackCmd $ constrFields dc
   where
     mkRepackCmd :: DataField -> RepackCmd
     mkRepackCmd df = fromMaybe (Skip $ getFieldWidth df) $ listToMaybe
         [ Repack (getFieldWidth df) rf n
         | (rf, n) <- repacks
-        , fieldName df == Just (repackFieldName rf)
+        , fieldName df == Just (repackerFieldName rf)
         ]
 
 executeRepackCmd :: Exp -> RepackCmd -> Q Exp
@@ -122,7 +83,7 @@ executeRepackCmd exp (Skip n) =
     [| let (s, ps)      = $(return exp)
            (this, next) = B.splitAt n s
        in (next, ps ++ [this]) |]
-executeRepackCmd exp (Repack n (RepackField _ f) name) =
+executeRepackCmd exp (Repack n (RepackerField _ f) name) =
     [| let (s, ps)      = $(return exp)
            (this, next) = B.splitAt n s
-       in (next, ps ++ repack ($(f) $(return $ VarE name))) |]
+       in (next, ps ++ $(return f) $(return $ VarE name)) |]

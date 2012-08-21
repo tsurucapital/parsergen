@@ -1,16 +1,28 @@
 {-# LANGUAGE RecordWildCards, FlexibleContexts #-}
 module ParserGen.ParseQuote
-    ( Datatype (..)
+    ( Decl (..)
+
+    , Datatype (..)
     , DataConstructor (..)
     , DataField (..)
     , ParserType (..)
+
+    , Repacker (..)
+    , RepackerField (..)
+
+    , getDecls
+    , unzipDecls
     , getDatatypes
+    , getRepackers
+
     , getFieldWidth
     , getConstructorWidth
     ) where
 
 
 --import Control.Monad.Trans.Class
+import Control.Monad (unless)
+import Data.List (isPrefixOf)
 import Text.Parsec hiding (spaces)
 import Text.Parsec.Pos
 import Language.Haskell.TH as TH
@@ -19,6 +31,13 @@ import System.FilePath.Posix ((</>), takeDirectory)
 
 import Data.Char (chr)
 import Control.Applicative hiding (many, (<|>), optional)
+
+import Debug.Trace
+
+data Decl
+    = DatatypeDecl Datatype
+    | RepackerDecl Repacker
+    deriving (Show)
 
 data Datatype
     = Datatype
@@ -50,7 +69,16 @@ data ParserType
     | HardcodedString String -- raw string, ex "B7014"
     deriving (Show, Eq)
 
+data Repacker = Repacker
+    { repackerName        :: String
+    , repackerConstructor :: String
+    , repackerFields      :: [RepackerField]
+    } deriving (Show)
 
+data RepackerField = RepackerField
+    { repackerFieldName     :: String
+    , repackerFieldUnparser :: Exp
+    } deriving (Show)
 
 -- get size to skip taking into account its repetition and sign if exists
 getFieldWidth :: DataField -> Int
@@ -64,8 +92,23 @@ getConstructorWidth = sum . map getFieldWidth . constrFields
 
 type ParserQ = ParsecT String () Q
 
+getDecls :: FilePath -> Q [Decl]
+getDecls templateName = do
+    tpl  <- getTemplate templateName
+    dcls <- parseDecls tpl
+    traceShow dcls $ return dcls
+
+unzipDecls :: [Decl] -> ([Datatype], [Repacker])
+unzipDecls decls =
+    ( [d | DatatypeDecl d <- decls]
+    , [r | RepackerDecl r <- decls]
+    )
+
 getDatatypes :: FilePath -> Q [Datatype]
-getDatatypes templateName = getTemplate templateName >>= parseDatatypes
+getDatatypes = fmap (fst . unzipDecls) . getDecls
+
+getRepackers :: FilePath -> Q [Repacker]
+getRepackers = fmap (snd . unzipDecls) . getDecls
 
 getTemplate :: FilePath -> Q (SourcePos, String)
 getTemplate templateName = do
@@ -75,14 +118,12 @@ getTemplate templateName = do
     body <- runIO $ readFile templatePath
     return (newPos templateName 1 1, body)
 
-
 getQPos :: Q SourcePos
 getQPos = do
     loc <- TH.location
     return $ newPos (TH.loc_filename loc)
                     (fst . TH.loc_start $ loc)
                     (snd . TH.loc_start $ loc)
-
 
 parseInQ :: ParserQ v -> (SourcePos, String) -> Q v
 parseInQ p (pos, s) = do
@@ -98,8 +139,10 @@ parseInQ p (pos, s) = do
                 eof
                 return val
 
-parseDatatypes :: (SourcePos, String) -> Q [Datatype]
-parseDatatypes = parseInQ (many1 datatypeParser)
+parseDecls :: (SourcePos, String) -> Q [Decl]
+parseDecls = parseInQ $ many1 $
+    (DatatypeDecl <$> datatypeParser) <|>
+    (RepackerDecl <$> repackerParser)
 
 datatypeParser :: ParserQ Datatype
 datatypeParser = do
@@ -113,7 +156,6 @@ datatypeParser = do
 
 spaces :: Stream s m Char => ParsecT s u m ()
 spaces = skipMany1 (oneOf "\t ")
-
 
 constrParser :: ParserQ DataConstructor
 constrParser = do
@@ -200,6 +242,30 @@ hardcodedString = between (char '"') (char '"') (many1 $ escapedChar <|> notQuot
         dec = chr <$> decimal
 
         notQuote = noneOf ['"']
+
+repackerParser :: ParserQ Repacker
+repackerParser = Repacker
+    <$> parseRepackerName
+    <*  spaces
+    <*> identifier
+    <*  endofline
+    <*> many1 parseRepackerField
+    <*  many endofline
+
+parseRepackerName :: ParserQ String
+parseRepackerName = do
+    name <- many1 alphaNum 
+    unless ("repackerFor" `isPrefixOf` name) $ fail $
+        "Repacker name must start with \"repackerFor\": " ++ name
+    return name
+
+parseRepackerField :: ParserQ RepackerField
+parseRepackerField = RepackerField
+    <$  (try (string "  ") <?> "repacker field padding")
+    <*> identifier
+    <*  spaces
+    <*> customParser
+    <*  endofline
 
 decimal :: ParserQ Int
 decimal = read <$> many1 digit
