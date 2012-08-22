@@ -16,10 +16,7 @@ module ParserGen.Parser
     , unsafeTake
     , skip
     , unsafeSkip
-    , unsafeDecimalX
-    , unsafeDecimalXS
     , takeWhile
-    , sign
     ) where
 
 import Data.Word (Word8)
@@ -27,11 +24,9 @@ import Control.Applicative
 import Control.Monad
 import Data.Monoid
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Unsafe as B
 import Data.ByteString (ByteString)
 import Prelude hiding (take, takeWhile)
-import Data.Char (ord)
 
 newtype S = S {
       input :: ByteString
@@ -173,32 +168,3 @@ atEnd = do
   i <- gets input
   return $! B.null i
 {-# INLINE atEnd #-}
-
-unsafeDecimalX :: Int -> Parser Int
-unsafeDecimalX l = unsafeTake l >>= go
-  where
-    go bs = loop 0 0
-      where
-        loop !acc !i
-            | i >= l    = return acc
-            | otherwise =
-                let x = fromIntegral (B.unsafeIndex bs i)
-                in if x >= ord '0' && x <= ord '9'
-                    then loop (acc * 10 - ord '0' + x) (i + 1)
-                    else fail $ "not an Int: " ++ show bs
-    {-# INLINE go #-}
-{-# INLINE unsafeDecimalX #-}
-
-unsafeDecimalXS :: Int -> Parser Int
-unsafeDecimalXS l = sign <*> unsafeDecimalX l
-
-sign :: Parser (Int -> Int)
-sign = do
-    raw <- C8.head <$> take 1
-    case raw of
-        '+' -> return id
-        ' ' -> return id
-        '0' -> return id
-        '-' -> return negate
-        inv -> fail $ "Invalid sign: " ++ show inv
-{-# INLINE sign #-}

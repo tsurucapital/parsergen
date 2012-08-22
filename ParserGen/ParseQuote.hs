@@ -5,30 +5,22 @@ module ParserGen.ParseQuote
     , getRepackers
     ) where
 
-
---import Control.Monad.Trans.Class
-import Control.Monad (unless)
+import Control.Applicative hiding (many, (<|>), optional)
+import Control.Monad (unless, (>=>))
+import Data.Char (chr)
 import Data.List (isPrefixOf)
-import Text.Parsec hiding (spaces)
-import Text.Parsec.Pos
 import Language.Haskell.TH as TH
 import System.Directory (getCurrentDirectory)
 import System.FilePath.Posix ((</>), takeDirectory)
-
-import Data.Char (chr)
-import Control.Applicative hiding (many, (<|>), optional)
+import Text.Parsec hiding (spaces)
+import Text.Parsec.Pos
 
 import ParserGen.Types
-
-import Debug.Trace
 
 type ParserQ = ParsecT String () Q
 
 getDecls :: FilePath -> Q [Decl]
-getDecls templateName = do
-    tpl  <- getTemplate templateName
-    dcls <- parseDecls tpl
-    traceShow dcls $ return dcls
+getDecls = getTemplate >=> parseDecls
 
 getDatatypes :: FilePath -> Q [Datatype]
 getDatatypes = fmap (fst . unzipDecls) . getDecls

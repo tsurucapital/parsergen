@@ -94,17 +94,17 @@
 -- >     })
 --
 module ParserGen
-    ( module ParserGen.Gen
+    ( module ParserGen.Common
+    , module ParserGen.Gen
     , module ParserGen.ParseQuote
     , module ParserGen.Parser
     , module ParserGen.Repack
     , module ParserGen.Types
-    , module ParserGen.Wrap
     ) where
 
+import ParserGen.Common
 import ParserGen.Gen
 import ParserGen.ParseQuote
 import ParserGen.Parser
 import ParserGen.Repack
 import ParserGen.Types
-import ParserGen.Wrap

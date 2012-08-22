@@ -12,10 +12,10 @@ import Data.Char (isUpper, toLower)
 import Data.Maybe (catMaybes)
 import qualified Data.ByteString.Char8 as C8
 
+import ParserGen.Common
 import ParserGen.ParseQuote
 import qualified ParserGen.Parser as P
 import ParserGen.Types
-import ParserGen.Wrap as W
 
 genDataTypeFromFile :: FilePath -> Q [Dec]
 genDataTypeFromFile templateName = getDatatypes templateName >>= mapM mkDataDecl
@@ -136,10 +136,10 @@ mkFieldParser df@(DataField {..}) = case fieldParser of
     UnsignedParser    -> case getTypeName fieldType of
         "()"              -> [| P.unsafeSkip     fieldWidth |]
         "ByteString"      -> [| P.unsafeTake     fieldWidth |]
-        "Int"             -> [| P.unsafeDecimalX fieldWidth |]
+        "Int"             -> [| unsafeDecimalX fieldWidth |]
         x                 -> deriveSizeParserFor x fieldWidth
     SignedParser      -> case getTypeName fieldType of
-        "Int"             -> [| P.unsafeDecimalXS fieldWidth |]
+        "Int"             -> [| unsafeDecimalXS fieldWidth |]
         x                 -> deriveSignSizeParserFor x fieldWidth
 
     HardcodedString s
@@ -153,8 +153,8 @@ deriveSizeParserFor :: String -> Int -> Q Exp
 deriveSizeParserFor fieldTypeName s = do
     (ty, cons, _) <- getTypeConsUncons fieldTypeName
     case ty of
-        _ | ty == ''Int      -> [|$(return cons) `fmap` P.unsafeDecimalX s|]
-          | ty == ''AlphaNum -> [|$(return cons) `fmap` W.alphaNumParser s|]
+        _ | ty == ''Int      -> [|$(return cons) `fmap` unsafeDecimalX s|]
+          | ty == ''AlphaNum -> [|$(return cons) `fmap` unsafeAlphaNum s|]
           | otherwise        -> fail $
             "Not supported type inside type/newtype " ++ fieldTypeName ++
             ": " ++ show ty
@@ -164,7 +164,7 @@ deriveSignSizeParserFor:: String -> Int -> Q Exp
 deriveSignSizeParserFor fieldTypeName s = do
     (ty, cons, _) <- getTypeConsUncons fieldTypeName
     case ty of
-        _ | ty == ''Int -> [|$(return cons) `fmap` P.unsafeDecimalXS s|]
+        _ | ty == ''Int -> [|$(return cons) `fmap` unsafeDecimalXS s|]
           | otherwise   -> fail $
             "Not supported type inside type/newtype " ++ fieldTypeName ++
             ": " ++ show ty

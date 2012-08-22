@@ -5,17 +5,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 module ParserGen.Repack
     ( genRepackFromFile
-
-    , putDecimalX
-    , putDecimalXS
-    , putTS8
     ) where
 
 import Control.Applicative
 import Control.Monad (foldM)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as BC
 import Data.Maybe (fromMaybe, listToMaybe)
 import Language.Haskell.TH
 
@@ -111,27 +106,3 @@ executeRepackCmd e (Repack df f name) = do
   where
     n = getFieldWidth df
     r = getFieldHasRepeat df
-
-
-putDecimalX :: Int -> Int -> [ByteString]
-putDecimalX l i = [BC.pack $ putDecimalX_S l i]
-
-putDecimalXS :: Int ->  Int -> [ByteString]
-putDecimalXS l i
-    | i >= 0    = [BC.pack $ ' ' : putDecimalX_S l i]
-    | otherwise = [BC.pack $ '-' : putDecimalX_S l (negate i)]
-
-putTS8 :: Int -> Int -> Int -> Int -> [ByteString]
-putTS8 h m s u = map BC.pack
-    [ putDecimalX_S 2 h
-    , putDecimalX_S 2 m
-    , putDecimalX_S 2 s
-    , putDecimalX_S 2 u
-    ]
-
--- helper function
-putDecimalX_S :: Int -> Int -> String
-putDecimalX_S l i
-    | i >= 0    = reverse . take l . reverse $ (replicate l '0' ++ show i)
-    | otherwise =
-        error "ParserGen.Repack: Can't put negative decimal X: " ++ show i

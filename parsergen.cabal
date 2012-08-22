@@ -5,50 +5,31 @@ Synopsis: TH parser generator for splitting bytestring into fixed-width fields
 Description:
   See the 'ParserGen' module for a tutorial
 
--- The license under which the package is released.
-License:             BSD3
-
--- The file containing the license text.
-License-file:        LICENSE
-
--- The package author(s).
-Author:              Michael Baikov
-
--- An email address to which users can send suggestions, bug reports,
--- and patches.
-Maintainer:          manpacket@gmail.com
-
--- A copyright notice.
--- Copyright:
-
-Category:            Data
-
-Build-type:          Simple
-
--- Extra files to be distributed with the package, such as examples or
--- a README.
--- Extra-source-files:
-
--- Constraint on the version of Cabal needed to build this package.
-Cabal-version:       >=1.2
+License:       BSD3
+License-file:  LICENSE
+Author:        Michael Baikov
+Maintainer:    manpacket@gmail.com
+Category:      Data
+Build-type:    Simple
+Cabal-version: >= 1.2
 
 
 Library
   Ghc-options: -Wall
 
   Exposed-modules:
-        ParserGen
-      , ParserGen.Gen
-      , ParserGen.Wrap
-      , ParserGen.Parser
-      , ParserGen.ParseQuote
-      , ParserGen.Repack
-      , ParserGen.Types
+    ParserGen
+    ParserGen.Common
+    ParserGen.Gen
+    ParserGen.Parser
+    ParserGen.ParseQuote
+    ParserGen.Repack
+    ParserGen.Types
 
   Build-depends:
-       base >= 3 && < 5
-       , bytestring
-       , parsec >= 3 && < 4
-       , filepath >= 1.2 && < 2
-       , directory >= 1.1 && < 2
-       , template-haskell >= 2.5 && < 3
+    base             >= 3   && < 5,
+    bytestring       >= 0.9 && < 0.10,
+    directory        >= 1.1 && < 2,
+    filepath         >= 1.2 && < 2,
+    parsec           >= 3   && < 4,
+    template-haskell >= 2.5 && < 3
