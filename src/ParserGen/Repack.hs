@@ -100,8 +100,8 @@ executeRepackCmd e (Skip n) =
        in (next, ps ++ [this]) |]
 executeRepackCmd e (Repack df f name) = do
     repeatedF <- if r then [|map $(return f)|] else [|return . $(return f)|]
-    [| let (s, ps)         = $(return e)
-           (this, next)    = B.splitAt n s
+    [| let (s, ps)   = $(return e)
+           (_, next) = B.splitAt n s
        in (next, ps ++ $(return repeatedF) $(return $ VarE name)) |]
   where
     n = getFieldWidth df
