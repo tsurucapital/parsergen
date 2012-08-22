@@ -1,4 +1,6 @@
-{-# LANGUAGE TemplateHaskell, QuasiQuotes, RecordWildCards, OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 module ParserGen.Gen
     ( genDataTypeFromFile
     , genParserFromFile
@@ -86,9 +88,6 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
                         pat = case getFieldName dc df of
                             Just n  -> VarP n
                             Nothing -> WildP
-
-                atEndQ :: Q Stmt
-                atEndQ = [| P.atEnd >>= guard |] >>= return . BindS WildP
 
                 result :: Stmt
                 result = NoBindS (AppE (VarE . mkName $ "return")
