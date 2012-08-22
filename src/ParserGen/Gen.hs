@@ -76,7 +76,11 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
                 funName = mkName $ "parserFor" ++ constrName
 
                 mkField :: DataField -> Q Stmt
-                mkField df@(DataField {..}) = mkFieldParser df >>= adjustRepeat >>= return . BindS pat
+                mkField df@(DataField {..}) =
+                        mkFieldParser fieldParser (getTypeName fieldType)
+                            fieldWidth (getFieldIsIgnored df)
+                                >>= adjustRepeat
+                                >>= return . BindS pat
                     where
 
                         adjustRepeat :: Exp -> Q Exp
@@ -125,48 +129,33 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
                 -- }}}
                 -- }}}
 
-getTypeName :: Type -> String
-getTypeName (ConT n) = nameBase n
-getTypeName t = error $ "Invalid type in size based parser: " ++ show t
+getTypeName :: Type -> Name
+getTypeName (ConT n) = n
+getTypeName t        = error $ "Invalid type in size based parser: " ++ show t
 
-mkFieldParser :: DataField -> Q Exp
-mkFieldParser df@(DataField {..}) = case fieldParser of
+mkFieldParser :: ParserType -> Name -> Int -> Bool -> Q Exp
+mkFieldParser pty ftyname fwidth fignored = case pty of
     CustomParser p    -> return p
-    UnsignedParser    -> case getTypeName fieldType of
-        "()"              -> [| P.unsafeSkip     fieldWidth |]
-        "ByteString"      -> [| P.unsafeTake     fieldWidth |]
-        "Int"             -> [| unsafeDecimalX fieldWidth |]
-        x                 -> deriveSizeParserFor x fieldWidth
-    SignedParser      -> case getTypeName fieldType of
-        "Int"             -> [| unsafeDecimalXS fieldWidth |]
-        x                 -> deriveSignSizeParserFor x fieldWidth
+    UnsignedParser    -> case nameBase ftyname of
+        "()"              -> [|P.unsafeSkip   fwidth|]
+        "ByteString"      -> [|P.unsafeTake   fwidth|]
+        "Int"             -> [|unsafeDecimalX fwidth|]
+        x                 -> recurse x
+    SignedParser      -> case nameBase ftyname of
+        "Int"             -> [| unsafeDecimalXS fwidth|]
+        x                 -> recurse x
 
     HardcodedString s
-        | length s /= fieldWidth -> fail $ "Width of " ++ show s ++ " is not " ++ show fieldWidth ++ "!"
+        | length s /= fwidth -> fail $ "Width of " ++ show s ++ " is not " ++ show fwidth ++ "!"
         -- if string value is ignored - no need to return it
-        | getFieldIsIgnored df   -> [| P.string (C8.pack s) |]
-        | otherwise              -> [| P.string (C8.pack s) >> return (C8.pack s) |]
+        | fignored           -> [|P.string (C8.pack s)|]
+        | otherwise          -> [|P.string (C8.pack s) >> return (C8.pack s)|]
 
--- | Try to derive size based parser for given type
-deriveSizeParserFor :: String -> Int -> Q Exp
-deriveSizeParserFor fieldTypeName s = do
-    (ty, cons, _) <- getTypeConsUncons fieldTypeName
-    case ty of
-        _ | ty == ''Int      -> [|$(return cons) `fmap` unsafeDecimalX s|]
-          | ty == ''AlphaNum -> [|$(return cons) `fmap` unsafeAlphaNum s|]
-          | otherwise        -> fail $
-            "Not supported type inside type/newtype " ++ fieldTypeName ++
-            ": " ++ show ty
-
--- | Try to derive size based parser for given type
-deriveSignSizeParserFor:: String -> Int -> Q Exp
-deriveSignSizeParserFor fieldTypeName s = do
-    (ty, cons, _) <- getTypeConsUncons fieldTypeName
-    case ty of
-        _ | ty == ''Int -> [|$(return cons) `fmap` unsafeDecimalXS s|]
-          | otherwise   -> fail $
-            "Not supported type inside type/newtype " ++ fieldTypeName ++
-            ": " ++ show ty
+  where
+    recurse ty = do
+        (ftyname', cons, _) <- getTypeConsUncons ty
+        fparser             <- mkFieldParser pty ftyname' fwidth fignored
+        [|$(return cons) `fmap` $(return fparser)|]
 
 -- | The following function takes a type name and generates a proper name,
 -- a constructor and an unconstror for it.
