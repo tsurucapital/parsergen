@@ -32,22 +32,35 @@ mkRepacker dts (Repacker rname cname cfields) = do
     withNames <- mapM (\cf -> (,) cf <$> newName "p") cfields
     let repackCmds = mkRepackCmds dc withNames
 
-    bsVar    <- newName "bs"
-    undef    <- [|undefined|]
-    btbT     <- [t|ByteString -> ByteString|]
-    foldInit <- [|($(return $ VarE bsVar) , [])|]
-    fold     <- foldM executeRepackCmd foldInit repackCmds
-    body     <- [|B.concat $ snd $(return fold)|]
+    bsVar     <- newName "bs"
+    undef     <- [|undefined|]
+    btbT      <- [t|ByteString -> ByteString|]
+    foldInit  <- [|($(varE bsVar) , [])|]
+    fold      <- foldM executeRepackCmd foldInit repackCmds
+    result    <- [|B.concat $ snd $(return fold)|]
+    resultVar <- newName "result"
+
+    validLen   <- [|B.length $(varE resultVar) == $(litE $ integerL len)|]
+    otherwise' <- [|otherwise|]
 
     return
         [ SigD repackerName (foldr mkType btbT cfields)
         , FunD repackerName
-            [ Clause (map (VarP . snd) withNames ++ [VarP bsVar])
-              (NormalB body) []
+            [ Clause
+                (map (VarP . snd) withNames ++ [VarP bsVar])
+                (GuardedB
+                    -- Return original BS if length test fails. Note that we
+                    -- only check the total length, where we actually also could
+                    -- check the length of each field...
+                    [ (NormalG validLen,   VarE resultVar)
+                    , (NormalG otherwise', VarE bsVar)
+                    ])
+                [ValD (VarP resultVar) (NormalB result) []]
             ]
         ]
   where
     repackerName = mkName rname
+    len          = fromIntegral $ getConstructorWidth dc
 
     dc = case [c | dt <- dts, c <- typeConstrs dt, constrName c == cname] of
         [x] -> x
