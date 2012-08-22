@@ -134,12 +134,12 @@ mkFieldParser :: DataField -> Q Exp
 mkFieldParser df@(DataField {..}) = case fieldParser of
     CustomParser p    -> return p
     UnsignedParser    -> case getTypeName fieldType of
-        "()"              -> [| P.skip     fieldWidth |]
-        "ByteString"      -> [| P.take     fieldWidth |]
-        "Int"             -> [| P.decimalX fieldWidth |]
+        "()"              -> [| P.unsafeSkip     fieldWidth |]
+        "ByteString"      -> [| P.unsafeTake     fieldWidth |]
+        "Int"             -> [| P.unsafeDecimalX fieldWidth |]
         x                 -> deriveSizeParserFor x fieldWidth
     SignedParser      -> case getTypeName fieldType of
-        "Int"             -> [| P.decimalXS fieldWidth |]
+        "Int"             -> [| P.unsafeDecimalXS fieldWidth |]
         x                 -> deriveSignSizeParserFor x fieldWidth
 
     HardcodedString s
@@ -153,7 +153,7 @@ deriveSizeParserFor :: String -> Int -> Q Exp
 deriveSizeParserFor fieldTypeName s = do
     (ty, cons, _) <- getTypeConsUncons fieldTypeName
     case ty of
-        _ | ty == ''Int      -> [|$(return cons) `fmap` P.decimalX s|]
+        _ | ty == ''Int      -> [|$(return cons) `fmap` P.unsafeDecimalX s|]
           | ty == ''AlphaNum -> [|$(return cons) `fmap` W.alphaNumParser s|]
           | otherwise        -> fail $
             "Not supported type inside type/newtype " ++ fieldTypeName ++
@@ -164,7 +164,7 @@ deriveSignSizeParserFor:: String -> Int -> Q Exp
 deriveSignSizeParserFor fieldTypeName s = do
     (ty, cons, _) <- getTypeConsUncons fieldTypeName
     case ty of
-        _ | ty == ''Int -> [|$(return cons) `fmap` P.decimalXS s|]
+        _ | ty == ''Int -> [|$(return cons) `fmap` P.unsafeDecimalXS s|]
           | otherwise   -> fail $
             "Not supported type inside type/newtype " ++ fieldTypeName ++
             ": " ++ show ty

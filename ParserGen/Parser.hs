@@ -16,9 +16,7 @@ module ParserGen.Parser
     , unsafeTake
     , skip
     , unsafeSkip
-    , decimalX
     , unsafeDecimalX
-    , decimalXS
     , unsafeDecimalXS
     , takeWhile
     , sign
@@ -190,27 +188,6 @@ unsafeDecimalX l = unsafeTake l >>= go
                     else fail $ "not an Int: " ++ show bs
     {-# INLINE go #-}
 {-# INLINE unsafeDecimalX #-}
-
-decimalX :: Int -> Parser Int
-decimalX l = do
-        raw <- gets input
-        if l < B.length raw
-            then loop raw 0 (B.unsafeTake l raw)
-            else fail $ "insufficient input for decimalX: expected " ++ show l ++ "; remaining input is: " ++ show raw
-    where
-        loop :: ByteString -> Int -> ByteString -> Parser Int
-        loop raw !i s | B.null s = do
-                put (S (B.unsafeDrop l raw))
-                return i
-        loop raw !i s = let h = fromIntegral (B.unsafeHead s)
-                    in if h >= ord '0' && h <= ord '9'
-                           then loop raw (i * 10 - ord '0' + h) (B.unsafeTail s)
-                           else fail $ "not an Int: " ++ show (B.unsafeTake l raw)
-
-
-
-decimalXS :: Int -> Parser Int
-decimalXS l = sign <*> decimalX l
 
 unsafeDecimalXS :: Int -> Parser Int
 unsafeDecimalXS l = sign <*> unsafeDecimalX l
