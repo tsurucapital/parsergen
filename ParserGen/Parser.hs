@@ -177,19 +177,19 @@ atEnd = do
 {-# INLINE atEnd #-}
 
 unsafeDecimalX :: Int -> Parser Int
-unsafeDecimalX l = do
-        raw <- gets input
-        loop raw 0 (B.unsafeTake l raw)
-    where
-        loop :: ByteString -> Int -> ByteString -> Parser Int
-        loop raw !i s | B.null s = do
-                put (S (B.unsafeDrop l raw))
-                return i
-        loop raw !i s = let h = fromIntegral (B.unsafeHead s)
-                    in if h >= ord '0' && h <= ord '9'
-                           then loop raw (i * 10 - ord '0' + h) (B.unsafeTail s)
-                           else fail $ "not an Int: " ++ show (B.unsafeTake l raw)
-
+unsafeDecimalX l = unsafeTake l >>= go
+  where
+    go bs = loop 0 0
+      where
+        loop !acc !i
+            | i >= l    = return acc
+            | otherwise =
+                let x = fromIntegral (B.unsafeIndex bs i)
+                in if x >= ord '0' && x <= ord '9'
+                    then loop (acc * 10 - ord '0' + x) (i + 1)
+                    else fail $ "not an Int: " ++ show bs
+    {-# INLINE go #-}
+{-# INLINE unsafeDecimalX #-}
 
 decimalX :: Int -> Parser Int
 decimalX l = do

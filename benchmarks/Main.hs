@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+module Main where
+
 import Control.DeepSeq (NFData)
 import Criterion (Pure, bench, nf)
 import Criterion.Main (defaultMain)
