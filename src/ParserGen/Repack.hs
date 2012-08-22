@@ -99,7 +99,7 @@ executeRepackCmd e (Skip n) =
            (this, next) = B.splitAt n s
        in (next, ps ++ [this]) |]
 executeRepackCmd e (Repack df f name) = do
-    repeatedF <- if r then [|concatMap $(return f)|] else return f
+    repeatedF <- if r then [|map $(return f)|] else [|return . $(return f)|]
     [| let (s, ps)         = $(return e)
            (this, next)    = B.splitAt n s
        in (next, ps ++ $(return repeatedF) $(return $ VarE name)) |]

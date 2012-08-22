@@ -6,7 +6,6 @@ module ParserGen.Common.Tests
 import Control.Applicative ((<$>))
 import Control.Monad (replicateM)
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import Test.Framework (Test, testGroup)
 import Test.Framework.Providers.QuickCheck2 (testProperty)
@@ -33,11 +32,11 @@ instance Arbitrary DecimalX where
 
 testDecimalX :: DecimalX -> Bool
 testDecimalX (DecimalX x) =
-    parse (unsafeDecimalX 6) (B.concat $ putDecimalX 6 x) == Right x
+    parse (unsafeDecimalX 6) (putDecimalX 6 x) == Right x
 
 testDecimalXTH :: DecimalX -> Bool
 testDecimalXTH (DecimalX x) =
-    parse $(unsafeDecimalXTH 6) (B.concat $ putDecimalX 6 x) == Right x
+    parse $(unsafeDecimalXTH 6) (putDecimalX 6 x) == Right x
 
 newtype DecimalXS = DecimalXS Int
     deriving (Eq, Show)
@@ -50,11 +49,11 @@ instance Arbitrary DecimalXS where
 
 testDecimalXS :: DecimalXS -> Bool
 testDecimalXS (DecimalXS x) =
-    parse (unsafeDecimalXS 6) (B.concat $ putDecimalXS 6 x) == Right x
+    parse (unsafeDecimalXS 6) (putDecimalXS 6 x) == Right x
 
 testDecimalXSTH :: DecimalXS -> Bool
 testDecimalXSTH (DecimalXS x) =
-    parse $(unsafeDecimalXSTH 6) (B.concat $ putDecimalXS 6 x) == Right x
+    parse $(unsafeDecimalXSTH 6) (putDecimalXS 6 x) == Right x
 
 newtype AlphaNumTest = AlphaNumTest ByteString
     deriving (Eq, Show)
