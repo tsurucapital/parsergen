@@ -138,11 +138,12 @@ mkFieldParser pty ftyname fwidth fignored = case pty of
     CustomParser p    -> return p
     UnsignedParser    -> case nameBase ftyname of
         "()"              -> [|P.unsafeSkip   fwidth|]
+        "AlphaNum"        -> [|unsafeAlphaNum fwidth|]
         "ByteString"      -> [|P.unsafeTake   fwidth|]
-        "Int"             -> [|unsafeDecimalX fwidth|]
+        "Int"             -> unsafeDecimalXTH fwidth
         x                 -> recurse x
     SignedParser      -> case nameBase ftyname of
-        "Int"             -> [| unsafeDecimalXS fwidth|]
+        "Int"             -> unsafeDecimalXSTH fwidth
         x                 -> recurse x
 
     HardcodedString s
