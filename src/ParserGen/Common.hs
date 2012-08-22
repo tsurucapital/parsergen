@@ -51,6 +51,7 @@ putDecimalXS l i
     | i >= 0    = [BC.pack $ ' ' : putDecimalXString l i]
     | otherwise = [BC.pack $ '-' : putDecimalXString l (negate i)]
 
+-- | Helper function
 sign :: Parser (Int -> Int)
 sign = do
     raw <- BC.head <$> P.take 1
@@ -61,6 +62,13 @@ sign = do
         '-' -> return negate
         inv -> fail $ "Invalid sign: " ++ show inv
 {-# INLINE sign #-}
+
+-- | Helper function
+putDecimalXString :: Int -> Int -> String
+putDecimalXString l i
+    | i >= 0    = reverse . take l . reverse $ (replicate l '0' ++ show i)
+    | otherwise =
+        error "ParserGen.Repack: Can't put negative decimal X: " ++ show i
 
 -- | Can keep up to 12 characters from 0..9, A..Z
 newtype AlphaNum = AlphaNum {unAlphaNum :: Int64}
@@ -93,10 +101,3 @@ putTS8 h m s u = map BC.pack
     , putDecimalXString 2 s
     , putDecimalXString 2 u
     ]
-
--- | Helper function
-putDecimalXString :: Int -> Int -> String
-putDecimalXString l i
-    | i >= 0    = reverse . take l . reverse $ (replicate l '0' ++ show i)
-    | otherwise =
-        error "ParserGen.Repack: Can't put negative decimal X: " ++ show i

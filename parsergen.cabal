@@ -34,3 +34,24 @@ Library
     filepath         >= 1.2 && < 2,
     parsec           >= 3   && < 4,
     template-haskell >= 2.5 && < 3
+
+Test-suite parsergen-tests
+  Ghc-options:    -Wall
+  Hs-source-dirs: src tests
+  Main-is:        TestSuite.hs
+  Type:           exitcode-stdio-1.0
+
+  Other-modules:
+    ParserGen.Common.Tests
+
+  Build-depends:
+    QuickCheck                 >= 2.4 && < 2.6,
+    test-framework             >= 0.4 && < 0.7,
+    test-framework-quickcheck2 >= 0.2 && < 0.3,
+    -- Copied from regular dependencies...
+    base             >= 3   && < 5,
+    bytestring       >= 0.9 && < 0.10,
+    directory        >= 1.1 && < 2,
+    filepath         >= 1.2 && < 2,
+    parsec           >= 3   && < 4,
+    template-haskell >= 2.5 && < 3
