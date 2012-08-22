@@ -18,10 +18,11 @@ import ParserGen.Parser
 
 tests :: Test
 tests = testGroup "ParserGen.Common.Tests"
-    [ testProperty "decimalX"      testDecimalX
-    , testProperty "decimalX (TH)" testDecimalXTH
-    , testProperty "decimalXS"     testDecimalXS
-    , testProperty "alphaNum"      testAlphaNum
+    [ testProperty "decimalX"       testDecimalX
+    , testProperty "decimalX (TH)"  testDecimalXTH
+    , testProperty "decimalXS"      testDecimalXS
+    , testProperty "decimalXS (TH)" testDecimalXSTH
+    , testProperty "alphaNum"       testAlphaNum
     ]
 
 newtype DecimalX = DecimalX Int
@@ -50,6 +51,10 @@ instance Arbitrary DecimalXS where
 testDecimalXS :: DecimalXS -> Bool
 testDecimalXS (DecimalXS x) =
     parse (unsafeDecimalXS 6) (B.concat $ putDecimalXS 6 x) == Right x
+
+testDecimalXSTH :: DecimalXS -> Bool
+testDecimalXSTH (DecimalXS x) =
+    parse $(unsafeDecimalXSTH 6) (B.concat $ putDecimalXS 6 x) == Right x
 
 newtype AlphaNumTest = AlphaNumTest ByteString
     deriving (Eq, Show)

@@ -8,6 +8,7 @@ module ParserGen.Common
     , putDecimalX
 
     , unsafeDecimalXS
+    , unsafeDecimalXSTH
     , putDecimalXS
 
     , AlphaNum (..)
@@ -55,8 +56,8 @@ unsafeDecimalXTH size = do
     go bs prevacc i
         | i >= size = [|return $(return prevacc)|]
         | otherwise = do
-            x    <- newName "x"
-            acc  <- newName "var"
+            x    <- newName $ "x" ++ show i
+            acc  <- newName $ "var" ++ show i
             xv   <- [|fromIntegral (B.unsafeIndex $(varE bs) i) :: Int|]
             accv <- [|$(return prevacc) * 10 + $(varE x) - ord '0'|]
             next <- go bs (VarE acc) (i + 1)
@@ -75,6 +76,10 @@ putDecimalX l i = [BC.pack $ putDecimalXString l i]
 
 unsafeDecimalXS :: Int -> Parser Int
 unsafeDecimalXS l = sign <*> unsafeDecimalX l
+{-# INLINE unsafeDecimalXS #-}
+
+unsafeDecimalXSTH :: Int -> Q Exp
+unsafeDecimalXSTH size = [|sign <*> $(unsafeDecimalXTH size)|]
 
 putDecimalXS :: Int ->  Int -> [ByteString]
 putDecimalXS l i
@@ -84,7 +89,7 @@ putDecimalXS l i
 -- | Helper function
 sign :: Parser (Int -> Int)
 sign = do
-    raw <- BC.head <$> P.take 1
+    raw <- BC.head <$> P.unsafeTake 1
     case raw of
         '+' -> return id
         ' ' -> return id
