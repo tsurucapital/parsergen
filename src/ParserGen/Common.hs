@@ -1,8 +1,10 @@
 -- | Parsing and unparsing for commonly used datatypes
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 module ParserGen.Common
     ( unsafeDecimalX
+    , unsafeDecimalXTH
     , putDecimalX
 
     , unsafeDecimalXS
@@ -21,6 +23,7 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Unsafe as B
 import Data.Char (chr, ord)
 import Data.Int (Int64)
+import Language.Haskell.TH
 
 import ParserGen.Parser (Parser)
 import qualified ParserGen.Parser as P
@@ -34,11 +37,38 @@ unsafeDecimalX l = P.unsafeTake l >>= go
             | i >= l    = return acc
             | otherwise =
                 let x = fromIntegral (B.unsafeIndex bs i)
-                in if x >= ord '0' && x <= ord '9'
-                    then loop (acc * 10 - ord '0' + x) (i + 1)
-                    else fail $ "not an Int: " ++ show bs
+                in if x < ord '0' || x > ord '9'
+                    then fail $ "not an Int: " ++ show bs
+                    else loop (acc * 10 - ord '0' + x) (i + 1)
     {-# INLINE go #-}
 {-# INLINE unsafeDecimalX #-}
+
+-- | This is a template-haskell based version of 'unsafeDecimalX' which
+-- generates a fast, unrolled loop
+unsafeDecimalXTH :: Int -> Q Exp
+unsafeDecimalXTH size = do
+    bs  <- newName "bs"
+    go' <- go bs (LitE (IntegerL 0)) 0
+    [|P.unsafeTake size >>= $(return $ LamE [VarP bs] go')|]
+  where
+    go :: Name -> Exp -> Int -> Q Exp
+    go bs prevacc i
+        | i >= size = [|return $(return prevacc)|]
+        | otherwise = do
+            x    <- newName "x"
+            acc  <- newName "var"
+            xv   <- [|fromIntegral (B.unsafeIndex $(varE bs) i) :: Int|]
+            accv <- [|$(return prevacc) * 10 + $(varE x) - ord '0'|]
+            next <- go bs (VarE acc) (i + 1)
+
+            body <- [| if $(varE x) < ord '0' || $(varE x) > ord '9'
+                        then fail $ "Not an Int " ++ show $(varE bs)
+                        else $(varE acc) `seq` $(return next) |]
+
+            return $ LetE
+                [ ValD (VarP x)   (NormalB xv)   []
+                , ValD (VarP acc) (NormalB accv) []
+                ] body
 
 putDecimalX :: Int -> Int -> [ByteString]
 putDecimalX l i = [BC.pack $ putDecimalXString l i]

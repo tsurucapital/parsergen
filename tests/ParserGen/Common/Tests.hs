@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 module ParserGen.Common.Tests
     ( tests
     ) where
@@ -17,9 +18,10 @@ import ParserGen.Parser
 
 tests :: Test
 tests = testGroup "ParserGen.Common.Tests"
-    [ testProperty "decimalX"  testDecimalX
-    , testProperty "decimalXS" testDecimalXS
-    , testProperty "alphaNum"  testAlphaNum
+    [ testProperty "decimalX"      testDecimalX
+    , testProperty "decimalX (TH)" testDecimalXTH
+    , testProperty "decimalXS"     testDecimalXS
+    , testProperty "alphaNum"      testAlphaNum
     ]
 
 newtype DecimalX = DecimalX Int
@@ -31,6 +33,10 @@ instance Arbitrary DecimalX where
 testDecimalX :: DecimalX -> Bool
 testDecimalX (DecimalX x) =
     parse (unsafeDecimalX 6) (B.concat $ putDecimalX 6 x) == Right x
+
+testDecimalXTH :: DecimalX -> Bool
+testDecimalXTH (DecimalX x) =
+    parse $(unsafeDecimalXTH 6) (B.concat $ putDecimalX 6 x) == Right x
 
 newtype DecimalXS = DecimalXS Int
     deriving (Eq, Show)
