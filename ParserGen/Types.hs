@@ -93,5 +93,5 @@ data Repacker = Repacker
 
 data RepackerField = RepackerField
     { repackerFieldName     :: String
-    , repackerFieldUnparser :: Exp
+    , repackerFieldUnparser :: Maybe Exp
     } deriving (Show)

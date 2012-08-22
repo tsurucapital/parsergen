@@ -90,10 +90,13 @@ mkRepackCmds dc repacks = fuseSkips $ map mkRepackCmd $ constrFields dc
   where
     mkRepackCmd :: DataField -> RepackCmd
     mkRepackCmd df = fromMaybe (Skip $ getFieldWidth df) $ listToMaybe
-        [ Repack df (repackerFieldUnparser rf) n
+        [ Repack df (getUnparser rf) n
         | (rf, n) <- repacks
         , fieldName df == Just (repackerFieldName rf)
         ]
+
+    getUnparser (RepackerField _ (Just up)) = up
+    getUnparser _                           = error "No unparser found"
 
 executeRepackCmd :: Exp -> RepackCmd -> Q Exp
 executeRepackCmd e (Skip n) =

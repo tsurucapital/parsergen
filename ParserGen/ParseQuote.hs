@@ -189,8 +189,7 @@ parseRepackerField :: ParserQ RepackerField
 parseRepackerField = RepackerField
     <$  (try (string "  ") <?> "repacker field padding")
     <*> identifier
-    <*  spaces
-    <*> customParser
+    <*> optionMaybe (spaces *> customParser)
     <*  endofline
 
 decimal :: ParserQ Int
