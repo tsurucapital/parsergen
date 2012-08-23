@@ -12,6 +12,8 @@ import qualified Data.ByteString as B
 import ParserGen.Common
 import ParserGen.Parser
 
+import Woori
+
 main :: IO ()
 main = defaultMain
     [ bench "unsafeDecimalX 4"       $ benchParse (unsafeDecimalX 4)     i1
@@ -25,6 +27,8 @@ main = defaultMain
     , bench "unsafeDecimalXS 10 (TH)" $ benchParse $(unsafeDecimalXSTH 10) i2
 
     , bench "alphaNum 12" $ benchParse (unsafeAlphaNum 12) i3
+
+    , bench "Woori" $ benchParse parserForWoori wooriPacket
     ]
 
 benchParse :: NFData a => Parser a -> ByteString -> Pure

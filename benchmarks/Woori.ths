@@ -1,0 +1,25 @@
+Woori
+  Woori
+    _Datatype         ByteString   5   "G7034"
+    IssueCode         IssueCode    12
+    _IssueSeq         Int          3
+    CurrentPrice      Price        5
+    TradingVolume     Qty          7
+    _TradingCode      ByteString   2
+    TradingTime       DiffTime     8   ts8
+    _OpeningPrice     Price        5
+    _HighPrice        Price        5
+    _LowPrice         Price        5
+    _PrevPrice        Price        5
+    _AcumVolume       Qty          8
+    _AccumValue       Price        11
+    _MarketStatus     MarketStatus 2
+    _TotalBidVol      Int          7
+    5x BestBids       Position     12  bidOrOfferOpt
+    _TotalAskVol      Int          7
+    5x BestAsks       Position     12  bidOrOfferOpt
+    _NumBidValidTotal Int          5
+    5x NumBestBid     Qty          4
+    _NumAskValidtotal Int          5
+    5x NumBestAsk     Qty          4
+    _EOT              ByteString   1   "\255"
