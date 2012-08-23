@@ -150,7 +150,7 @@ skip !n = do
 
 -- | Skip @n@ bytes of input without checking if it's available
 unsafeSkip :: Int -> Parser ()
-unsafeSkip !n = gets input >>= put . S . B.unsafeTake n
+unsafeSkip !n = gets input >>= put . S . B.unsafeDrop n
 {-# INLINE unsafeSkip #-}
 
 -- | Match a string exactly.
