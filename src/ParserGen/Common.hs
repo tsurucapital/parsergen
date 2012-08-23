@@ -16,8 +16,6 @@ module ParserGen.Common
     , putAlphaNum
 
     , putTS8
-
-    , sign
     ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -83,6 +81,18 @@ unsafeDecimalXS l = sign <*> unsafeDecimalX l
 unsafeDecimalXSTH :: Int -> Q Exp
 unsafeDecimalXSTH size = [|sign <*> $(unsafeDecimalXTH size)|]
 
+-- | Helper function
+sign :: Parser (Int -> Int)
+sign = do
+    raw <- BC.head <$> P.unsafeTake 1
+    case raw of
+        '+' -> return id
+        ' ' -> return id
+        '0' -> return id
+        '-' -> return negate
+        inv -> fail $ "Invalid sign: " ++ show inv
+{-# INLINE sign #-}
+
 putDecimalXS :: Int ->  Int -> ByteString
 putDecimalXS l i
     | i >= 0    = BC.pack $ ' ' : putDecimalXString l i
@@ -126,15 +136,3 @@ putTS8 h m s u = BC.pack $ concat
     , putDecimalXString 2 s
     , putDecimalXString 2 u
     ]
-
--- | Helper function
-sign :: Parser (Int -> Int)
-sign = do
-    raw <- BC.head <$> P.unsafeTake 1
-    case raw of
-        '+' -> return id
-        ' ' -> return id
-        '0' -> return id
-        '-' -> return negate
-        inv -> fail $ "Invalid sign: " ++ show inv
-{-# INLINE sign #-}
