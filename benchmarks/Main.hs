@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Main where
 
-import Control.DeepSeq (NFData)
+import Control.DeepSeq (NFData, rnf)
 import Criterion (Pure, bench, nf)
 import Criterion.Main (defaultMain)
 import Data.ByteString (ByteString)
@@ -22,6 +23,8 @@ main = defaultMain
     , bench "unsafeDecimalXS 4 (TH)"  $ benchParse $(unsafeDecimalXSTH 4)  i2
     , bench "unsafeDecimalXS 10"      $ benchParse (unsafeDecimalXS 10)    i2
     , bench "unsafeDecimalXS 10 (TH)" $ benchParse $(unsafeDecimalXSTH 10) i2
+
+    , bench "alphaNum 12" $ benchParse (unsafeAlphaNum 12) i3
     ]
 
 benchParse :: NFData a => Parser a -> ByteString -> Pure
@@ -34,3 +37,10 @@ i1 = B.concat $ replicate 100 "1234"
 i2 :: ByteString
 i2 = B.concat $ "-" : replicate 100 "1234"
 {-# NOINLINE i2 #-}
+
+i3 :: ByteString
+i3 = "ABC123XYZ789"
+{-# NOINLINE i3 #-}
+
+instance NFData AlphaNum where
+    rnf (AlphaNum x) = rnf x

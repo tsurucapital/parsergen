@@ -36,13 +36,6 @@ getTemplate templateName = do
     body <- runIO $ readFile templatePath
     return (newPos templateName 1 1, body)
 
-getQPos :: Q SourcePos
-getQPos = do
-    loc <- TH.location
-    return $ newPos (TH.loc_filename loc)
-                    (fst . TH.loc_start $ loc)
-                    (snd . TH.loc_start $ loc)
-
 parseInQ :: ParserQ v -> (SourcePos, String) -> Q v
 parseInQ p (pos, s) = do
         parseResult <- runParserT (inPosition p) () "" s

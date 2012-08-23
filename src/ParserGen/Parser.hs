@@ -90,8 +90,9 @@ put s = Parser $ \_ -> (# OK (), s #)
 -- | Run a parser.
 parse :: Parser a -> ByteString -> Either String a
 parse p bs = case runParser p (S bs) of
-               (# OK a, _ #) -> Right a
-               (# Fail err, _ #) -> Left err
+    (# OK a, _ #)     -> Right a
+    (# Fail err, _ #) -> Left err
+{-# INLINE parse #-}
 
 instance Monoid (Parser a) where
     mempty  = fail "mempty"

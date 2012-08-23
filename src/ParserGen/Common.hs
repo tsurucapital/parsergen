@@ -117,8 +117,11 @@ unsafeAlphaNum size = do
         else fail "invalid AlphaNum"
   where
     f :: Char -> Int64 -> Int64
-    f c acc | c <= '9' = 36 * acc + fromIntegral (ord c - ord '0')
-    f c acc            = 36 * acc + fromIntegral (ord c - ord 'A' + 10)
+    f c acc
+        | c <= '9'  = 36 * acc + fromIntegral (ord c - ord '0')
+        | otherwise = 36 * acc + fromIntegral (ord c - ord 'A' + 10)
+    {-# INLINE f #-}
+{-# INLINE unsafeAlphaNum #-}
 
 putAlphaNum :: AlphaNum -> ByteString
 putAlphaNum = fst . BC.unfoldrN 12 (Just . f) . unAlphaNum

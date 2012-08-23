@@ -108,23 +108,21 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
                 fuseIgnores :: [DataField] -> [DataField]
 
                 -- join two sequential skips into one
-                fuseIgnores (a:b:rest) | getFieldIsIgnored a && getFieldIsIgnored b = fuseIgnores $ fused : rest
-                    where
-                        fused = DataField { fieldName   = Nothing
-                                          , fieldStrict = False
-                                          , fieldRepeat = Nothing
-                                          , fieldType   = (ConT . mkName $ "()")
-                                          , fieldParser = UnsignedParser
-                                          , fieldWidth  = getFieldWidth a + getFieldWidth b
-                                          }
-                -- transform skips to cheapest possible version
-                fuseIgnores (x:xs) | getFieldIsIgnored x = transformed : fuseIgnores xs
-                    where
-                        transformed = x { fieldType = (ConT . mkName $ "()" ) }
+                fuseIgnores (a : b : rest)
+                    | getFieldIsIgnored a && getFieldIsIgnored b = fuseIgnores $ fused : rest
+                    | otherwise                                  = a : fuseIgnores (b : rest)
+                  where
+                    fused = DataField { fieldName   = Nothing
+                                      , fieldStrict = False
+                                      , fieldRepeat = Nothing
+                                      , fieldType   = (ConT . mkName $ "()")
+                                      , fieldParser = UnsignedParser
+                                      , fieldWidth  = getFieldWidth a + getFieldWidth b
+                                      }
 
                 -- transform rest of the stream
-                fuseIgnores (x:xs) = x : fuseIgnores xs
-                fuseIgnores [] = []
+                fuseIgnores (x : xs) = x : fuseIgnores xs
+                fuseIgnores []       = []
 
                 -- }}}
                 -- }}}
@@ -134,24 +132,24 @@ getTypeName (ConT n) = n
 getTypeName t        = error $ "Invalid type in size based parser: " ++ show t
 
 mkFieldParser :: ParserType -> Name -> Int -> Bool -> Q Exp
-mkFieldParser pty ftyname fwidth fignored = case pty of
-    CustomParser p    -> return p
-    UnsignedParser    -> case nameBase ftyname of
-        "()"              -> [|P.unsafeSkip   fwidth|]
-        "AlphaNum"        -> [|unsafeAlphaNum fwidth|]
-        "ByteString"      -> [|P.unsafeTake   fwidth|]
-        "Int"             -> unsafeDecimalXTH fwidth
-        x                 -> recurse x
-    SignedParser      -> case nameBase ftyname of
-        "Int"             -> unsafeDecimalXSTH fwidth
-        x                 -> recurse x
+mkFieldParser pty ftyname fwidth fignored
+    | fignored  = [|P.unsafeSkip fwidth|]
+    | otherwise = case pty of
+        CustomParser p    -> return p
+        UnsignedParser    -> case nameBase ftyname of
+            "AlphaNum"        -> [|unsafeAlphaNum fwidth|]
+            "ByteString"      -> [|P.unsafeTake   fwidth|]
+            "Int"             -> unsafeDecimalXTH fwidth
+            x                 -> recurse x
+        SignedParser      -> case nameBase ftyname of
+            "Int"             -> unsafeDecimalXSTH fwidth
+            x                 -> recurse x
 
-    HardcodedString s
-        | length s /= fwidth -> fail $ "Width of " ++ show s ++ " is not " ++ show fwidth ++ "!"
-        -- if string value is ignored - no need to return it
-        | fignored           -> [|P.string (C8.pack s)|]
-        | otherwise          -> [|P.string (C8.pack s) >> return (C8.pack s)|]
-
+        HardcodedString s
+            | length s /= fwidth -> fail $ "Width of " ++ show s ++ " is not " ++ show fwidth ++ "!"
+            -- if string value is ignored - no need to return it
+            | fignored           -> [|P.string (C8.pack s)|]
+            | otherwise          -> [|P.string (C8.pack s) >> return (C8.pack s)|]
   where
     recurse ty = do
         (ftyname', cons, _) <- getTypeConsUncons ty
