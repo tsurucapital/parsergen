@@ -8,12 +8,14 @@ module ParserGen.Repack
     ) where
 
 import Control.Applicative
-import Control.Monad (foldM)
+import Control.Monad (foldM, mplus)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.List (find)
+import Data.Maybe (fromMaybe)
 import Language.Haskell.TH
 
+import ParserGen.Gen
 import ParserGen.ParseQuote
 import ParserGen.Types
 
@@ -24,8 +26,8 @@ genRepackFromFile templateName = do
 
 mkRepacker :: [Datatype] -> Repacker -> Q [Dec]
 mkRepacker dts (Repacker rname cname cfields) = do
-    withNames <- mapM (\cf -> (,) cf <$> newName "p") cfields
-    let repackCmds = mkRepackCmds dc withNames
+    withNames  <- mapM (\cf -> (,) cf <$> newName "p") cfields
+    repackCmds <- mkRepackCmds dc withNames
 
     bsVar     <- newName "bs"
     undef     <- [|undefined|]
@@ -80,18 +82,27 @@ fuseSkips (Skip a : Skip b : rcs) = fuseSkips $ Skip (a + b) : rcs
 fuseSkips (r      : rcs)          = r : fuseSkips rcs
 fuseSkips []                      = []
 
-mkRepackCmds :: DataConstructor -> [(RepackerField, Name)] -> [RepackCmd]
-mkRepackCmds dc repacks = fuseSkips $ map mkRepackCmd $ constrFields dc
+mkRepackCmds :: DataConstructor -> [(RepackerField, Name)] -> Q [RepackCmd]
+mkRepackCmds dc repacks = fmap fuseSkips $ mapM mkRepackCmd $ constrFields dc
   where
-    mkRepackCmd :: DataField -> RepackCmd
-    mkRepackCmd df = fromMaybe (Skip $ getFieldWidth df) $ listToMaybe
-        [ Repack df (getUnparser rf) n
-        | (rf, n) <- repacks
-        , fieldName df == Just (repackerFieldName rf)
-        ]
+    mkRepackCmd :: DataField -> Q RepackCmd
+    mkRepackCmd df@(DataField {..}) =
+        case find ((== fieldName) . Just . repackerFieldName . fst) repacks of
+            Nothing      -> return $ Skip $ getFieldWidth df
+            Just (rf, n) -> do
+                -- Try to automatically derive an unparser
+                (_, derived) <- mkFieldParser fieldParser
+                    (getTypeName fieldType) fieldWidth (getFieldIsIgnored df)
 
-    getUnparser (RepackerField _ (Just up)) = up
-    getUnparser _                           = error "No unparser found"
+                -- Get the optionally custom-specified one
+                let custom = repackerFieldUnparser rf
+
+                -- Compose the two
+                let unparser = fromMaybe
+                        (error $ "No unparser found for " ++ show fieldName) $
+                        custom `mplus` derived
+
+                return $ Repack df unparser n
 
 executeRepackCmd :: Exp -> RepackCmd -> Q Exp
 executeRepackCmd e (Skip n) =

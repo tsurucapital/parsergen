@@ -5,6 +5,10 @@ module ParserGen.Gen
     ( genDataTypeFromFile
     , genParserFromFile
     , genWidthFromFile
+
+      -- * Internally used
+    , getTypeName
+    , mkFieldParser
     ) where
 
 import Language.Haskell.TH as TH
@@ -76,11 +80,11 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
                 funName = mkName $ "parserFor" ++ constrName
 
                 mkField :: DataField -> Q Stmt
-                mkField df@(DataField {..}) =
-                        mkFieldParser fieldParser (getTypeName fieldType)
+                mkField df@(DataField {..}) = do
+                        (parser, _) <- mkFieldParser fieldParser (getTypeName fieldType)
                             fieldWidth (getFieldIsIgnored df)
-                                >>= adjustRepeat
-                                >>= return . BindS pat
+                        parser' <- adjustRepeat parser
+                        return $ BindS pat parser'
                     where
 
                         adjustRepeat :: Exp -> Q Exp
@@ -131,30 +135,37 @@ getTypeName :: Type -> Name
 getTypeName (ConT n) = n
 getTypeName t        = error $ "Invalid type in size based parser: " ++ show t
 
-mkFieldParser :: ParserType -> Name -> Int -> Bool -> Q Exp
+mkFieldParser :: ParserType -> Name -> Int -> Bool -> Q (Exp, Maybe Exp)
 mkFieldParser pty ftyname fwidth fignored
-    | fignored  = [|P.unsafeSkip fwidth|]
+    | fignored  = wn [|P.unsafeSkip fwidth|]
     | otherwise = case pty of
-        CustomParser p    -> return p
+        CustomParser p    -> return (p, Nothing)
         UnsignedParser    -> case nameBase ftyname of
-            "AlphaNum"        -> [|unsafeAlphaNum fwidth|]
-            "ByteString"      -> [|P.unsafeTake   fwidth|]
-            "Int"             -> unsafeDecimalXTH fwidth
-            x                 -> recurse x
+            "AlphaNum"   -> wj [|unsafeAlphaNum fwidth|] [|putAlphaNum|]
+            "ByteString" -> wj [|P.unsafeTake  fwidth|]  [|id|]
+            "Int"        -> wj (unsafeDecimalXTH fwidth) [|putDecimalX fwidth|]
+            x            -> recurse x
         SignedParser      -> case nameBase ftyname of
-            "Int"             -> unsafeDecimalXSTH fwidth
-            x                 -> recurse x
+            "Int" -> wj (unsafeDecimalXSTH fwidth) [|putDecimalXS fwidth|]
+            x     -> recurse x
 
         HardcodedString s
             | length s /= fwidth -> fail $ "Width of " ++ show s ++ " is not " ++ show fwidth ++ "!"
             -- if string value is ignored - no need to return it
-            | fignored           -> [|P.string (C8.pack s)|]
-            | otherwise          -> [|P.string (C8.pack s) >> return (C8.pack s)|]
+            | fignored           -> wn [|P.string (C8.pack s)|]
+            | otherwise          -> wn [|P.string (C8.pack s) >> return (C8.pack s)|]
   where
     recurse ty = do
-        (ftyname', cons, _) <- getTypeConsUncons ty
-        fparser             <- mkFieldParser pty ftyname' fwidth fignored
-        [|$(return cons) `fmap` $(return fparser)|]
+        (ftyname', cons, uncons) <- getTypeConsUncons ty
+        (fparser, funparser)     <- mkFieldParser pty ftyname' fwidth fignored
+        liftM2 (,) [|$(return cons) `fmap` $(return fparser)|] $
+            case funparser of
+                Nothing -> return Nothing
+                Just f  -> fmap Just [|\x -> $(return f) ($(return uncons) x)|]
+
+    -- | Utility
+    wj x y = (,) <$> x <*> fmap Just y
+    wn x   = (,) <$> x <*> pure Nothing
 
 -- | The following function takes a type name and generates a proper name,
 -- a constructor and an unconstror for it.
