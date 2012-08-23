@@ -1,10 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Woori
-    ( Woori (..)
-    , parserForWoori
-    , wooriPacket
+module Dummy
+    ( Dummy (..)
+    , parserForDummy
+    , dummyPacket
     ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -58,13 +58,13 @@ marketStatus = do
 
 -- Generate datypes, parsers
 
-$(genDataTypeFromFile "Woori.ths")
-$(genParserFromFile   "Woori.ths")
+$(genDataTypeFromFile "Dummy.ths")
+$(genParserFromFile   "Dummy.ths")
 
 -- NFData instances for benchmark
 
-instance NFData Woori where
-    rnf (Woori ic cp tv tt bb ba nbb nba) =
+instance NFData Dummy where
+    rnf (Dummy ic cp tv tt bb ba nbb nba) =
         rnf ic  `seq`
         rnf cp  `seq`
         rnf tv  `seq`
@@ -77,8 +77,8 @@ instance NFData Woori where
 instance NFData IssueCode where
     rnf (IssueCode bs) = rnf (B.unpack bs)
 
-wooriPacket :: ByteString
-wooriPacket = B.concat
+dummyPacket :: ByteString
+dummyPacket = B.concat
     [ "G7034"
     , "ISSUECODE   "
     , "SEQ"

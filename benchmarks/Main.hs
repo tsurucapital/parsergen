@@ -12,7 +12,7 @@ import qualified Data.ByteString as B
 import ParserGen.Common
 import ParserGen.Parser
 
-import Woori
+import Dummy
 
 main :: IO ()
 main = defaultMain
@@ -28,7 +28,7 @@ main = defaultMain
 
     , bench "alphaNum 12" $ benchParse (unsafeAlphaNum 12) i3
 
-    , bench "Woori" $ benchParse parserForWoori wooriPacket
+    , bench "Dummy" $ benchParse parserForDummy dummyPacket
     ]
 
 benchParse :: NFData a => Parser a -> ByteString -> Pure
