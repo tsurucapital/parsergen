@@ -23,8 +23,11 @@ Library
     ParserGen.Common
     ParserGen.Gen
     ParserGen.Parser
-    ParserGen.ParseQuote
     ParserGen.Repack
+
+  Other-modules:
+    ParserGen.Auto
+    ParserGen.ParseQuote
     ParserGen.Types
 
   Build-depends:

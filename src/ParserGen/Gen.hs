@@ -5,10 +5,6 @@ module ParserGen.Gen
     ( genDataTypeFromFile
     , genParserFromFile
     , genWidthFromFile
-
-      -- * Internally used
-    , getTypeName
-    , mkFieldParser
     ) where
 
 import Language.Haskell.TH as TH
@@ -16,9 +12,8 @@ import Control.Applicative
 import Control.Monad
 import Data.Char (isUpper, toLower)
 import Data.Maybe (catMaybes)
-import qualified Data.ByteString.Char8 as C8
 
-import ParserGen.Common
+import ParserGen.Auto
 import ParserGen.ParseQuote
 import qualified ParserGen.Parser as P
 import ParserGen.Types
@@ -81,17 +76,9 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
 
                 mkField :: DataField -> Q Stmt
                 mkField df@(DataField {..}) = do
-                        (parser, _) <- mkFieldParser fieldParser (getTypeName fieldType)
-                            fieldWidth (getFieldIsIgnored df)
-                        parser' <- adjustRepeat parser
-                        return $ BindS pat parser'
+                        (parser, _) <- getFieldParserUnparser df
+                        return $ BindS pat parser
                     where
-
-                        adjustRepeat :: Exp -> Q Exp
-                        adjustRepeat p = case fieldRepeat of
-                            Nothing -> return p
-                            Just q  -> [| count q $(return p) |]
-
                         pat :: Pat
                         pat = case getFieldName dc df of
                             Just n  -> VarP n
@@ -130,89 +117,6 @@ mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeC
 
                 -- }}}
                 -- }}}
-
-getTypeName :: Type -> Name
-getTypeName (ConT n) = n
-getTypeName t        = error $ "Invalid type in size based parser: " ++ show t
-
-mkFieldParser :: ParserType -> Name -> Int -> Bool -> Q (Exp, Maybe Exp)
-mkFieldParser pty ftyname fwidth fignored
-    | fignored  = wn [|P.unsafeSkip fwidth|]
-    | otherwise = case pty of
-        CustomParser p    -> return (p, Nothing)
-        UnsignedParser    -> case nameBase ftyname of
-            "AlphaNum"   -> wj [|unsafeAlphaNum fwidth|] [|putAlphaNum|]
-            "ByteString" -> wj [|P.unsafeTake  fwidth|]  [|id|]
-            "Int"        -> wj (unsafeDecimalXTH fwidth) [|putDecimalX fwidth|]
-            x            -> recurse x
-        SignedParser      -> case nameBase ftyname of
-            "Int" -> wj (unsafeDecimalXSTH fwidth) [|putDecimalXS fwidth|]
-            x     -> recurse x
-
-        HardcodedString s
-            | length s /= fwidth -> fail $ "Width of " ++ show s ++ " is not " ++ show fwidth ++ "!"
-            -- if string value is ignored - no need to return it
-            | fignored           -> wn [|P.string (C8.pack s)|]
-            | otherwise          -> wn [|P.string (C8.pack s) >> return (C8.pack s)|]
-  where
-    recurse ty = do
-        (ftyname', cons, uncons) <- getTypeConsUncons ty
-        (fparser, funparser)     <- mkFieldParser pty ftyname' fwidth fignored
-        liftM2 (,) [|$(return cons) `fmap` $(return fparser)|] $
-            case funparser of
-                Nothing -> return Nothing
-                Just f  -> fmap Just [|\x -> $(return f) ($(return uncons) x)|]
-
-    -- | Utility
-    wj x y = (,) <$> x <*> fmap Just y
-    wn x   = (,) <$> x <*> pure Nothing
-
--- | The following function takes a type name and generates a proper name,
--- a constructor and an unconstror for it.
---
--- Example: given the type
---
--- > data Wrap = Wrap Int
---
--- We will generate a constructor expression which is equivalent to
---
--- > Wrap :: Int -> Wrap
---
--- and an unconstructor expression equivalent to
---
--- > \w -> let Wrap uw = w in uw :: Wrap -> Int
---
-getTypeConsUncons :: String -> Q (Name, Exp, Exp)
-getTypeConsUncons name = do
-    TyConI info <- recover (fail unknownType) (reify (mkName name))
-    id'         <- [|id|]
-    case info of
-        TySynD _ _ (ConT synTo) ->
-            return (synTo, id', id')
-
-        NewtypeD _ _ _ (RecC constr [(unconstr, _, ConT typeFor)]) _ ->
-            return (typeFor, ConE constr, VarE unconstr)
-
-        NewtypeD _ _ _ (NormalC constr [(_, ConT typeFor)]) _ -> do
-
-            -- I don't think there's a simpler way?
-            w  <- newName "w"
-            uw <- newName "uw"
-            let unconstr = LamE [VarP w] (LetE
-                    [ValD (ConP constr [VarP uw]) (NormalB (VarE w)) []]
-                    (VarE uw))
-
-            return (typeFor, ConE constr, unconstr)
-
-        _ -> fail $
-            "Can't deal with " ++ name ++ ", must be a type synonym or newtype"
-  where
-    unknownType = "Type `" ++ name ++ "' is undefined."
-
--- | Apply the given action repeatedly, returning every result.
-count :: Monad m => Int -> m a -> m [a]
-count n p = sequence (replicate n p)
-{-# INLINE count #-}
 
 mkWidthDecls :: Datatype -> Q [Dec]
 mkWidthDecls (Datatype {..}) = concat <$> mapM mkConstrWidthDecl typeConstrs

@@ -15,7 +15,7 @@ import Data.List (find)
 import Data.Maybe (fromMaybe)
 import Language.Haskell.TH
 
-import ParserGen.Gen
+import ParserGen.Auto
 import ParserGen.ParseQuote
 import ParserGen.Types
 
@@ -91,8 +91,7 @@ mkRepackCmds dc repacks = fmap fuseSkips $ mapM mkRepackCmd $ constrFields dc
             Nothing      -> return $ Skip $ getFieldWidth df
             Just (rf, n) -> do
                 -- Try to automatically derive an unparser
-                (_, derived) <- mkFieldParser fieldParser
-                    (getTypeName fieldType) fieldWidth (getFieldIsIgnored df)
+                (_, derived) <- getFieldParserUnparser df
 
                 -- Get the optionally custom-specified one
                 let custom = repackerFieldUnparser rf
@@ -110,10 +109,9 @@ executeRepackCmd e (Skip n) =
            (this, next) = B.splitAt n s
        in (next, ps ++ [this]) |]
 executeRepackCmd e (Repack df f name) = do
-    repeatedF <- if r then [|map $(return f)|] else [|return . $(return f)|]
     [| let (s, ps)   = $(return e)
            (_, next) = B.splitAt n s
-       in (next, ps ++ $(return repeatedF) $(return $ VarE name)) |]
+       in (next, ps ++ $(return f) $(return $ VarE name)) |]
   where
     n = getFieldWidth df
     r = getFieldHasRepeat df
