@@ -71,7 +71,7 @@ mkParsersDecls (Datatype {..}) =
       where
 
         ensureBytes :: Int -> Q Stmt
-        ensureBytes t = [| P.ensureBytesLeft t |] >>= return . BindS WildP
+        ensureBytes t = [| P.ensureBytesLeft t |] >>= return . NoBindS
 
         funName :: Name
         funName = mkName $ "parserFor" ++ constrName
@@ -79,12 +79,9 @@ mkParsersDecls (Datatype {..}) =
         mkField :: DataField -> Q Stmt
         mkField df@(DataField {..}) = do
             (parser, _) <- getFieldParserUnparser df Nothing
-            return $ BindS pat parser
-          where
-            pat :: Pat
-            pat = case getFieldName dc df of
-                Just n  -> VarP n
-                Nothing -> WildP
+            return $ case getFieldName dc df of
+                Just n -> BindS (VarP n) parser
+                _      -> NoBindS parser
 
         result :: Stmt
         result = NoBindS (AppE (VarE . mkName $ "return")

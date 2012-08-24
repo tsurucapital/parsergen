@@ -159,7 +159,7 @@ string :: ByteString -> Parser ()
 string s = do
   i <- gets input
   if s `B.isPrefixOf` i
-    then put (S (B.unsafeDrop (B.length s) i)) >> return ()
+    then put (S (B.unsafeDrop (B.length s) i))
     else fail $ "string"
 {-# INLINE string #-}
 

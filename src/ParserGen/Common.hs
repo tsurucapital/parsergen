@@ -64,11 +64,11 @@ unsafeDecimalXTH size = do
 
             body <- [| if $(varE x) < ord '0' || $(varE x) > ord '9'
                         then fail $ "Not an Int " ++ show $(varE bs)
-                        else $(varE acc) `seq` $(return next) |]
+                        else $(return next) |]
 
             return $ LetE
-                [ ValD (VarP x)   (NormalB xv)   []
-                , ValD (VarP acc) (NormalB accv) []
+                [ ValD (VarP x)           (NormalB xv)   []
+                , ValD (BangP (VarP acc)) (NormalB accv) []
                 ] body
 
 putDecimalX :: Int -> Int -> ByteString
