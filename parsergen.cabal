@@ -1,9 +1,11 @@
 Name:     parsergen
-Version:  0.1.0
+Version:  0.1.0.0
 Synopsis: TH parser generator for splitting bytestring into fixed-width fields
 
 Description:
-  See the 'ParserGen' module for a tutorial
+  For more information, see the README:
+  .
+  <https://github.com/tsurucapital/parsergen/blob/master/README.markdown>
 
 License:       BSD3
 License-file:  LICENSE
@@ -14,6 +16,7 @@ Build-type:    Simple
 Cabal-version: >= 1.2
 
 Extra-source-files:
+  README.markdown
   benchmarks/Dummy.ths
   tests/ParserGen/Tests/Packet.ths
 
