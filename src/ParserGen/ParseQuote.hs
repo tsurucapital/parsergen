@@ -84,75 +84,66 @@ repeatFactor = try (decimal <* char 'x') <?> "repetition factor"
 
 constFieldParser :: ParserQ DataField
 constFieldParser = do
-        _ <- try (string "    ") <?> "field padding"
+    _           <- try (string "    ") <?> "field padding"
+    fieldRepeat <- optionMaybe (try $ repeatFactor <* spaces)
+    fieldName   <- fieldNameParser
+    _           <- spaces
+    fieldStrict <- try (char '!' *> return True <* spaces) <|> return False
+    fieldType   <- typeParser
+    _           <- spaces
+    signed      <- option False (True <$ char '+')
+    fieldWidth  <- decimal <?> "field width spec"
+    fieldParser <- fieldParserParser signed
+    _           <- endofline
+    return DataField {..}
 
-        fieldRepeat  <- optionMaybe (try $ repeatFactor <* spaces)
-
-        fieldName    <- (Just <$> identifier) <|> (Nothing <$ (char '_' <* identifier))
-
-        _ <- spaces
-
-        fieldStrict  <- try (char '!' *> return True <* spaces) <|> return False
-
-        fieldType    <- typeParser
-
-
-        _ <- spaces
-
-        (signed, fieldWidth) <- widthSpec
-
-
-        if signed
-            then do let fieldParser = SignedParser
-                    _ <- endofline <?> "signed only parser"
-                    return DataField {..}
-            else do
-                    fieldParser <- choice [ CustomParser    <$> try (spaces *> customParser)
-                                          , HardcodedString <$> try (spaces *> hardcodedString)
-                                          , return UnsignedParser
-                                          ]
-                    _ <- endofline
-
-                    return DataField {..}
-
-
-widthSpec :: ParserQ (Bool, Int)
-widthSpec = ((,) <$> (option False (True <$ char '+')) <*> decimal) <?> "field width spec"
-
+fieldNameParser :: ParserQ (Maybe String)
+fieldNameParser =
+    (Just <$> identifier) <|> (Nothing <$ (char '_' <* identifier))
 
 typeParser :: ParserQ Type
 typeParser = (singleWord <|> multiWord) <?> "field type"
-    where
-        singleWord = (TH.ConT . TH.mkName) <$> ((:) <$> letter <*> many alphaNum)
-        multiWord = error "multiWord is not yet implemented"
+  where
+    singleWord = (TH.ConT . TH.mkName) <$> ((:) <$> letter <*> many alphaNum)
+    multiWord  = error "multiWord is not yet implemented"
 --        multiWord = between (char '(') (char ')') (many1 (noneOf ")"))
 
 
+fieldParserParser :: Bool -> ParserQ ParserType
+fieldParserParser signed =
+    (if signed then pure SignedParser else fail "signed parser") <|>
+    (CustomParser    <$> try (spaces *> customParser))           <|>
+    (HardcodedString <$> try (spaces *> hardcodedString))        <|>
+    (pure UnsignedParser)
+
 customParser :: ParserQ Exp
 customParser = singleWord <?> "custom parser"
-    where
-        singleWord = (TH.VarE . TH.mkName) <$> ((:) <$> lower <*> many1 (noneOf "( )\t\n"))
+  where
+    singleWord = (TH.VarE . TH.mkName) <$>
+        ((:) <$> lower <*> many1 (noneOf "( )\t\n"))
 
 hardcodedString :: ParserQ String
-hardcodedString = between (char '"') (char '"') (many1 $ escapedChar <|> notQuote) <?> "hardcoded string"
-    where
-        escapedChar = char '\\' *> (special <|> hex <|> dec)
+hardcodedString =
+    between (char '"') (char '"') (many1 $ escapedChar <|> notQuote) <?>
+    "hardcoded string"
+  where
+    escapedChar = char '\\' *> (special <|> hex <|> dec)
 
-        special :: ParserQ Char
-        special = do
-                c <- oneOf "nt\"\\"
-                return $ case c of
-                    'n' -> '\n'
-                    't' -> '\t'
-                    v   -> v -- unescape for \" and \\
+    special :: ParserQ Char
+    special = do
+            c <- oneOf "nt\"\\"
+            return $ case c of
+                'n' -> '\n'
+                't' -> '\t'
+                v   -> v -- unescape for \" and \\
 
-        hex :: ParserQ Char
-        hex = char 'x' *> ((chr . read  . ("0x"++)) <$> many1 hexDigit)
+    hex :: ParserQ Char
+    hex = char 'x' *> ((chr . read  . ("0x"++)) <$> many1 hexDigit)
 
-        dec :: ParserQ Char
-        dec = chr <$> decimal
+    dec :: ParserQ Char
+    dec = chr <$> decimal
 
-        notQuote = noneOf ['"']
+    notQuote = noneOf ['"']
 
 repackerParser :: ParserQ Repacker
 repackerParser = Repacker
@@ -187,6 +178,8 @@ prefix :: ParserQ String
 prefix = ((:) <$> lower <*> many alphaNum)
 
 endofline :: ParserQ [Char]
-endofline = many1 (try $ many (oneOf "\t ") *> (option "" $ try comment) *> char '\n') <?> "end of line"
-    where
-        comment = string "--" *> many1 (noneOf "\n")
+endofline = many1
+    (try $ many (oneOf "\t ")  *> (option "" $ try comment) *> char '\n') <?>
+    "end of line"
+  where
+    comment = string "--" *> many1 (noneOf "\n")
