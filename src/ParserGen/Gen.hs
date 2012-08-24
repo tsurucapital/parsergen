@@ -29,103 +29,99 @@ genWidthFromFile = getDatatypes >=> fmap concat . mapM mkWidthDecls
 
 mkDataDecl :: Datatype -> Q Dec
 mkDataDecl (Datatype {..}) = do
-        constrs <- mapM mkConstDef typeConstrs
-        return $ DataD [] (mkName typeName) [] constrs [''Eq, ''Show]
-    where
-        mkConstDef :: DataConstructor -> Q Con
-        mkConstDef dc@(DataConstructor {..}) = do
-            fields <- catMaybes <$> mapM (mkFieldDef dc) constrFields
-            return $ RecC (mkName constrName) fields
+    constrs <- mapM mkConstDef typeConstrs
+    return $ DataD [] (mkName typeName) [] constrs [''Eq, ''Show]
+  where
+    mkConstDef :: DataConstructor -> Q Con
+    mkConstDef dc@(DataConstructor {..}) = do
+        fields <- catMaybes <$> mapM (mkFieldDef dc) constrFields
+        return $ RecC (mkName constrName) fields
 
 
 mkFieldDef :: DataConstructor -> DataField -> Q (Maybe (Name, Strict, Type))
 mkFieldDef dc@(DataConstructor {..}) df@(DataField {..}) = return $ do
-        name <- getFieldName dc df
-        return (name, strict, getFieldRepeatType df)
-    where
-        strict :: Strict
-        strict = if fieldStrict then IsStrict else NotStrict
+    name <- getFieldName dc df
+    return (name, strict, getFieldRepeatType df)
+  where
+    strict :: Strict
+    strict = if fieldStrict then IsStrict else NotStrict
 
 getFieldName :: DataConstructor -> DataField -> Maybe Name
 getFieldName (DataConstructor {..}) (DataField {..}) =
-            mkName <$> ((++) <$> (constrPrefix <|> defaultPrefix) <*> fieldName)
-    where
-        defaultPrefix = Just (map toLower . filter isUpper $ constrName)
+    mkName <$> ((++) <$> (constrPrefix <|> defaultPrefix) <*> fieldName)
+  where
+    defaultPrefix = Just (map toLower . filter isUpper $ constrName)
 
 
 -- to create separate parsers for each constructor
 mkParsersDecls :: Datatype -> Q [Dec]
-mkParsersDecls (Datatype {..}) = concat <$> mapM (mkConstrParser typeName) typeConstrs
-    where
-        mkConstrParser :: String -> DataConstructor -> Q [Dec]
-        mkConstrParser name dc@(DataConstructor {..}) = do
-                fields <- mapM mkField (fuseIgnores constrFields)
-                ensure <- ensureBytes $ getConstructorWidth dc
-                t <- [t| P.Parser |]
+mkParsersDecls (Datatype {..}) =
+    concat <$> mapM (mkConstrParser typeName) typeConstrs
+  where
+    mkConstrParser :: String -> DataConstructor -> Q [Dec]
+    mkConstrParser name dc@(DataConstructor {..}) = do
+        fields <- mapM mkField (fuseIgnores constrFields)
+        ensure <- ensureBytes $ getConstructorWidth dc
+        t      <- [t| P.Parser |]
+        return
+            [ SigD funName (AppT t (ConT . mkName $ name ))
+            , FunD funName
+                [Clause [] (NormalB . DoE $ ensure : fields ++ [result] ) []]
+            ]
+      where
 
-                return $ [ SigD funName (AppT t (ConT . mkName $ name ))
-                         , FunD funName [Clause [] (NormalB . DoE $ ensure : fields ++ [result] ) []]
-                         ]
-            where
+        ensureBytes :: Int -> Q Stmt
+        ensureBytes t = [| P.ensureBytesLeft t |] >>= return . BindS WildP
 
-                ensureBytes :: Int -> Q Stmt
-                ensureBytes t = [| P.ensureBytesLeft t |] >>= return . BindS WildP
+        funName :: Name
+        funName = mkName $ "parserFor" ++ constrName
 
-                funName :: Name
-                funName = mkName $ "parserFor" ++ constrName
+        mkField :: DataField -> Q Stmt
+        mkField df@(DataField {..}) = do
+            (parser, _) <- getFieldParserUnparser df
+            return $ BindS pat parser
+          where
+            pat :: Pat
+            pat = case getFieldName dc df of
+                Just n  -> VarP n
+                Nothing -> WildP
 
-                mkField :: DataField -> Q Stmt
-                mkField df@(DataField {..}) = do
-                        (parser, _) <- getFieldParserUnparser df
-                        return $ BindS pat parser
-                    where
-                        pat :: Pat
-                        pat = case getFieldName dc df of
-                            Just n  -> VarP n
-                            Nothing -> WildP
+        result :: Stmt
+        result = NoBindS (AppE (VarE . mkName $ "return")
+             (RecConE (mkName constrName)
+                      (concatMap mkFieldAssignment constrFields)))
 
-                result :: Stmt
-                result = NoBindS (AppE (VarE . mkName $ "return")
-                                         (RecConE (mkName constrName)
-                                                  (concatMap mkFieldAssignment constrFields)))
+        mkFieldAssignment :: DataField -> [FieldExp]
+        mkFieldAssignment df@(DataField {..}) = case getFieldName dc df of
+                Just n  -> [(n, VarE n)]
+                Nothing -> []
 
-                mkFieldAssignment :: DataField -> [FieldExp]
-                mkFieldAssignment df@(DataField {..}) = case getFieldName dc df of
-                        Just n  -> [(n, VarE n)]
-                        Nothing -> []
+-- | Transforms sequence of size-based parsers with ignored values into one
+-- larger parser
+fuseIgnores :: [DataField] -> [DataField]
+fuseIgnores (a : b : rest)
+    | getFieldIsIgnored a && getFieldIsIgnored b = fuseIgnores $ fused : rest
+    | otherwise                                  = a : fuseIgnores (b : rest)
+  where
+    fused = DataField { fieldName   = Nothing
+                      , fieldStrict = False
+                      , fieldRepeat = Nothing
+                      , fieldType   = (ConT . mkName $ "()")
+                      , fieldParser = UnsignedParser
+                      , fieldWidth  = getFieldWidth a + getFieldWidth b
+                      }
 
-                -- some optimization helpers {{{
-                -- will transform sequence of sizebased parsers with ignored values into one larger parser -- {{{
-                fuseIgnores :: [DataField] -> [DataField]
-
-                -- join two sequential skips into one
-                fuseIgnores (a : b : rest)
-                    | getFieldIsIgnored a && getFieldIsIgnored b = fuseIgnores $ fused : rest
-                    | otherwise                                  = a : fuseIgnores (b : rest)
-                  where
-                    fused = DataField { fieldName   = Nothing
-                                      , fieldStrict = False
-                                      , fieldRepeat = Nothing
-                                      , fieldType   = (ConT . mkName $ "()")
-                                      , fieldParser = UnsignedParser
-                                      , fieldWidth  = getFieldWidth a + getFieldWidth b
-                                      }
-
-                -- transform rest of the stream
-                fuseIgnores (x : xs) = x : fuseIgnores xs
-                fuseIgnores []       = []
-
-                -- }}}
-                -- }}}
+fuseIgnores (x : xs) = x : fuseIgnores xs
+fuseIgnores []       = []
 
 mkWidthDecls :: Datatype -> Q [Dec]
 mkWidthDecls (Datatype {..}) = concat <$> mapM mkConstrWidthDecl typeConstrs
-    where
-        mkConstrWidthDecl :: DataConstructor -> Q [Dec]
-        mkConstrWidthDecl dc@(DataConstructor {..}) = return
-                [ SigD name (ConT $ mkName "Int")
-                , FunD name [Clause [] (NormalB $ LitE $ IntegerL width) []]
-                ]
-            where
-                width = fromIntegral $ getConstructorWidth dc
-                name  = mkName $ "widthFor" ++ constrName
+  where
+    mkConstrWidthDecl :: DataConstructor -> Q [Dec]
+    mkConstrWidthDecl dc@(DataConstructor {..}) = return
+        [ SigD name (ConT $ mkName "Int")
+        , FunD name [Clause [] (NormalB $ LitE $ IntegerL width) []]
+        ]
+      where
+        width = fromIntegral $ getConstructorWidth dc
+        name  = mkName $ "widthFor" ++ constrName

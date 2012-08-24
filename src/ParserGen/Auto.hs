@@ -38,10 +38,12 @@ mkFieldParser pty ftyname fwidth fignored
             x     -> recurse x
 
         HardcodedString s
-            | length s /= fwidth -> fail $ "Width of " ++ show s ++ " is not " ++ show fwidth ++ "!"
+            | length s /= fwidth -> fail $
+                "Width of " ++ show s ++ " is not " ++ show fwidth ++ "!"
             -- if string value is ignored - no need to return it
             | fignored           -> wn [|P.string (BC.pack s)|]
-            | otherwise          -> wn [|P.string (BC.pack s) >> return (BC.pack s)|]
+            | otherwise          ->
+                wn [|P.string (BC.pack s) >> return (BC.pack s)|]
   where
     recurse ty = do
         (ftyname', cons, uncons) <- getTypeConsUncons ty
