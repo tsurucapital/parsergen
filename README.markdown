@@ -81,6 +81,12 @@ Let's look at an example `.ths` file:
 
 And the `.hs` file:
 
+    {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
+    import Data.ByteString (ByteString)
+    import ParserGen.Gen
+    import ParserGen.Repack  -- Needed later on
+    import qualified ParserGen.Parser as P
+
     data DangerType
         = Earthquake
         | ZombieApocalypse
@@ -112,6 +118,11 @@ And the `.hs` file:
     sampleLotteryWin :: ByteString
     sampleLotteryWin = "LOTT9999999999040815162342"
 
+    main :: IO ()
+    main = do
+        print $ P.parse parserForWarning sampleWarning
+        print $ P.parse parserForLotteryWin sampleLotteryWin
+
 The `parsergen` generates:
 
 - The `Packet` datatype
@@ -123,3 +134,41 @@ Note how we have used three kinds of parsers:
 - `dangerType` is a custom parser, specified in the Haskell file
 - We don't specify parsers for numeral types, these are automatically derived
   (even for `newtype`s and `type` synonyms)
+
+### Repackers
+
+A powerful feature from the library, repackers allow us to change the contents
+of multiple fields without actually parsing a packet.
+
+#### Syntax
+
+The syntax looks like this:
+
+    repackerForName ConstructorName
+      FieldName [FieldUnParser]
+
+#### Example
+
+Let's add the following the bottom of our `.ths` file:
+
+    repackerForLotteryNumbers LotteryWin
+      WinningEntry
+
+And the following to our Haskell file:
+
+    $(genRepackFromFile "Packet.ths")
+
+which generates the function
+
+    repackerForLotteryNumbers :: [LotteryEntry] -> ByteString -> ByteString
+
+Use it like:
+
+    print $ repackerForLotteryNumbers [1 .. 6] sampleLotteryWin
+
+Things to note:
+
+- For numerical types, you don't need to specify an unparser, this is only
+  needed for custom types. These should have the type `SomeType -> ByteString`.
+- The repacker will take a list when the field is repeated (e.g. `6x` in this
+  case) and a single value otherwise
