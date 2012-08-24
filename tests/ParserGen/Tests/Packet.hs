@@ -13,6 +13,14 @@ module ParserGen.Tests.Packet
     , parserForMessage
     , parserForPacket
 
+    , widthForWarning
+    , widthForLotteryWin
+    , widthForMessage
+
+    , repackerForWarning
+    , repackerForLotteryWin
+    , repackerForMessage
+
     , sampleWarning
     , sampleLotteryWin
     , sampleMessage
@@ -42,6 +50,12 @@ dangerType = do
         "AG" -> return AngryGirlfriend
         _    -> fail $ "Unknown danger type: " ++ show bs
 
+unDangerType :: DangerType -> ByteString
+unDangerType Earthquake       = "EQ"
+unDangerType ZombieApocalypse = "ZA"
+unDangerType RobotUprising    = "RI"
+unDangerType AngryGirlfriend  = "AG"
+
 newtype Money = Money Int
     deriving (Eq, Show)
 
@@ -65,4 +79,4 @@ sampleLotteryWin :: ByteString
 sampleLotteryWin = "LOTT9999999999040815162342"
 
 sampleMessage :: ByteString
-sampleMessage = "MESSCATS    IMPORTANT 0945-20ALL YOUR BASE ARE BELONG TO US  "
+sampleMessage = "MESSCATS    IMPORTANT 0945-020ALL YOUR BASE ARE BELONG TO US  "

@@ -15,5 +15,15 @@ Packet
     _Subject          ByteString    10
     _TimeHour         Int            2
     _TimeMinute       Int            2
-    Temperature       Int           +2
+    Temperature       Int           +3
     Body              MessageBody   32
+
+repackerForWarning Warning
+  DangerType  unDangerType
+
+repackerForLotteryWin LotteryWin
+  WinningEntry
+
+repackerForMessage Message
+  Sender
+  Body

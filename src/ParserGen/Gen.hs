@@ -78,7 +78,7 @@ mkParsersDecls (Datatype {..}) =
 
         mkField :: DataField -> Q Stmt
         mkField df@(DataField {..}) = do
-            (parser, _) <- getFieldParserUnparser df
+            (parser, _) <- getFieldParserUnparser df Nothing
             return $ BindS pat parser
           where
             pat :: Pat

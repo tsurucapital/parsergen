@@ -8,7 +8,7 @@ module ParserGen.Repack
     ) where
 
 import Control.Applicative
-import Control.Monad (foldM, mplus)
+import Control.Monad (foldM)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as B
 import Data.List (find)
@@ -90,18 +90,17 @@ mkRepackCmds dc repacks = fmap fuseSkips $ mapM mkRepackCmd $ constrFields dc
         case find ((== fieldName) . Just . repackerFieldName . fst) repacks of
             Nothing      -> return $ Skip $ getFieldWidth df
             Just (rf, n) -> do
-                -- Try to automatically derive an unparser
-                (_, derived) <- getFieldParserUnparser df
-
-                -- Get the optionally custom-specified one
-                let custom = repackerFieldUnparser rf
+                -- Try to automatically derive an unparser with the optionally
+                -- custom-specified one
+                (_, unparser) <- getFieldParserUnparser df
+                    (repackerFieldUnparser rf)
 
                 -- Compose the two
-                let unparser = fromMaybe
-                        (error $ "No unparser found for " ++ show fieldName) $
-                        custom `mplus` derived
+                let unparser' = fromMaybe
+                        (error $ "No unparser found for " ++ show fieldName)
+                        unparser
 
-                return $ Repack df unparser n
+                return $ Repack df unparser' n
 
 executeRepackCmd :: Exp -> RepackCmd -> Q Exp
 executeRepackCmd e (Skip n) =

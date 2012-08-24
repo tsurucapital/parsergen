@@ -6,7 +6,7 @@ module ParserGen.Auto
     ) where
 
 import Control.Applicative (pure, (<$>), (<*>))
-import Control.Monad (liftM2, replicateM)
+import Control.Monad (liftM2, mplus, replicateM)
 import qualified Data.ByteString.Char8 as BC
 import Language.Haskell.TH
 
@@ -14,13 +14,14 @@ import ParserGen.Common
 import ParserGen.Types
 import qualified ParserGen.Parser as P
 
-getFieldParserUnparser :: DataField -> Q (Exp, Maybe Exp)
-getFieldParserUnparser df = do
+getFieldParserUnparser :: DataField -> Maybe Exp -> Q (Exp, Maybe Exp)
+getFieldParserUnparser df mCustomUnparser = do
     (parser, unparser) <- mkFieldParser (fieldParser df)
         (getTypeName $ fieldType df) (fieldWidth df) (getFieldIsIgnored df)
 
     parser'   <- repeatParser df parser
-    unparser' <- maybe (return Nothing) (fmap Just . repeatUnparser df) unparser
+    unparser' <- maybe (return Nothing) (fmap Just . repeatUnparser df) $
+        mplus mCustomUnparser unparser
     return (parser', unparser')
 
 mkFieldParser :: ParserType -> Name -> Int -> Bool -> Q (Exp, Maybe Exp)
