@@ -1,0 +1,19 @@
+Packet
+  Warning
+    _PacketType       ByteString     4  "WARN"
+    DangerType        DangerType     2  dangerType
+    ChanceOfSurvival  Int            3
+
+  LotteryWin
+    _PacketType       ByteString     4  "LOTT"
+    Amount            Money         10
+    6x WinningEntry   LotteryEntry   2
+
+  Message
+    _PacketType       ByteString     4  "MESS"
+    Sender            ByteString     8
+    _Subject          ByteString    10
+    _TimeHour         Int            2
+    _TimeMinute       Int            2
+    Temperature       Int           +2
+    Body              MessageBody   32
