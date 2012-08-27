@@ -13,7 +13,7 @@ Dummy
     _PrevPrice        Price        5
     _AcumVolume       Qty          8
     _AccumValue       Price        11
-    _MarketStatus     MarketStatus 2
+    _MarketStatus     MarketStatus 2   marketStatus
     _TotalBidVol      Int          7
     5x BestBids       Position     12  bidOrOfferOpt
     _TotalAskVol      Int          7

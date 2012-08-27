@@ -73,22 +73,25 @@ mkParsersDecls (Datatype {..}) =
         funName :: Name
         funName = mkName $ "parserFor" ++ constrName
 
+        prime :: Name -> Name
+        prime n = mkName $ nameBase n ++ "'"
+
         mkField :: DataField -> Q Stmt
         mkField df@(DataField {..}) = do
             (parser, _) <- getFieldParserUnparser df Nothing
             return $ case getFieldName dc df of
-                Just n -> BindS (VarP n) parser
+                Just n -> BindS (VarP $ prime n) parser
                 _      -> NoBindS parser
 
         result :: Stmt
         result = NoBindS (AppE (VarE . mkName $ "return")
-             (RecConE (mkName constrName)
+            (RecConE (mkName constrName)
                       (concatMap mkFieldAssignment constrFields)))
 
         mkFieldAssignment :: DataField -> [FieldExp]
         mkFieldAssignment df@(DataField {..}) = case getFieldName dc df of
-                Just n  -> [(n, VarE n)]
-                Nothing -> []
+            Just n  -> [(n, VarE $ prime n)]
+            Nothing -> []
 
 -- | Transforms sequence of size-based parsers with ignored values into one
 -- larger parser
