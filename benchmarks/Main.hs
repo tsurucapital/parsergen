@@ -12,6 +12,7 @@ import qualified Data.ByteString as B
 import ParserGen.Common
 import ParserGen.Parser
 
+import qualified Atoi as Atoi
 import Dummy
 
 main :: IO ()
@@ -20,6 +21,9 @@ main = defaultMain
     , bench "unsafeDecimalX 4 (TH)"  $ benchParse $(unsafeDecimalXTH 4)  i1
     , bench "unsafeDecimalX 10"      $ benchParse (unsafeDecimalX 10)    i1
     , bench "unsafeDecimalX 10 (TH)" $ benchParse $(unsafeDecimalXTH 10) i1
+
+    , bench "atoi 4"  $ benchParse (Atoi.unsafeDecimalX 4)  i1
+    , bench "atoi 10" $ benchParse (Atoi.unsafeDecimalX 10) i1
 
     , bench "unsafeDecimalXS 4"       $ benchParse (unsafeDecimalXS 4)     i2
     , bench "unsafeDecimalXS 4 (TH)"  $ benchParse $(unsafeDecimalXSTH 4)  i2
