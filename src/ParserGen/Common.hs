@@ -19,6 +19,7 @@ module ParserGen.Common
 import Control.Applicative ((<$>), (<*>))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BC
+import Data.ByteString.Internal (c2w)
 import qualified Data.ByteString.Unsafe as B
 import Data.Char (chr, ord)
 import Data.Int (Int64)
@@ -108,24 +109,36 @@ newtype AlphaNum = AlphaNum {unAlphaNum :: Int64}
     deriving (Show, Eq, Enum)
 
 unsafeAlphaNum :: Int -> Parser AlphaNum
-unsafeAlphaNum size = do
-    raw <- P.unsafeTake size
-    if BC.all (\c -> (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z')) raw
-        then return $ AlphaNum $ BC.foldr' f 0 raw
-        else fail "invalid AlphaNum"
+unsafeAlphaNum l = P.unsafeTake l >>= go
   where
-    f :: Char -> Int64 -> Int64
-    f c acc
-        | c <= '9'  = 36 * acc + fromIntegral (ord c - ord '0')
-        | otherwise = 36 * acc + fromIntegral (ord c - ord 'A' + 10)
-    {-# INLINE f #-}
+    go bs = loop 0 0
+      where
+        fail' = fail $ "Invalid alphanum: " ++ show bs
+        -- We assume some things about the ascii layout, and get better
+        -- branching that way...
+        loop !acc !i
+            | i >= l       =
+                return $ AlphaNum acc
+            | w <= c2w '9' = if w < c2w '0'
+                then fail'
+                else loop (36 * acc + (fromIntegral $ w - c2w '0')) (i + 1)
+            | otherwise    = if w < c2w 'A' || w > c2w 'Z'
+                then fail'
+                else loop (36 * acc + (fromIntegral $ w - c2w 'A' + 10)) (i + 1)
+          where
+            w = B.unsafeIndex bs i
+    {-# INLINE go #-}
 {-# INLINE unsafeAlphaNum #-}
 
 putAlphaNum :: AlphaNum -> ByteString
-putAlphaNum = fst . BC.unfoldrN 12 (Just . f) . unAlphaNum
+putAlphaNum (AlphaNum an) = fst $ BC.unfoldrN 12 f (36 ^ (11 :: Int))
   where
-    f :: Int64 -> (Char, Int64)
-    f i = let rest = i `div` 36
-          in case fromIntegral $ i `rem` 36 of
-                l | l >= 10 -> (chr $ l - 10 + ord 'A', rest)
-                l           -> (chr $ l + ord '0', rest)
+    f :: Int64 -> Maybe (Char, Int64)
+    f i | i <= 0    = Nothing
+        | l >= 10   = Just (chr $ l - 10 + ord 'A', i `div` 36)
+        | otherwise = Just (chr $ l + ord '0', i `div` 36)
+      where
+        -- Expensive? :-(
+        l = fromIntegral $ (an `div` i) `mod` 36
+    {-# INLINE f #-}
+{-# INLINE putAlphaNum #-}
