@@ -38,17 +38,17 @@ getTemplate templateName = do
 
 parseInQ :: ParserQ v -> (SourcePos, String) -> Q v
 parseInQ p (pos, s) = do
-        parseResult <- runParserT (inPosition p) () "" s
-        case parseResult of
-            Right v  -> return v
-            Left err -> fail $ show err
-    where
-        inPosition :: ParserQ v -> ParserQ v
-        inPosition p' = do
-                setPosition pos
-                val <- p'
-                eof
-                return val
+    parseResult <- runParserT (inPosition p) () "" s
+    case parseResult of
+        Right v  -> return v
+        Left err -> fail $ show err
+  where
+    inPosition :: ParserQ v -> ParserQ v
+    inPosition p' = do
+        setPosition pos
+        val <- p'
+        eof
+        return val
 
 parseDecls :: (SourcePos, String) -> Q [Decl]
 parseDecls = parseInQ $ many1 $
@@ -78,7 +78,6 @@ constrParser = do
 
     return DataConstructor {..}
 
-
 repeatFactor :: ParserQ Int
 repeatFactor = try (decimal <* char 'x') <?> "repetition factor"
 
@@ -106,8 +105,6 @@ typeParser = (singleWord <|> multiWord) <?> "field type"
   where
     singleWord = (TH.ConT . TH.mkName) <$> ((:) <$> letter <*> many alphaNum)
     multiWord  = error "multiWord is not yet implemented"
---        multiWord = between (char '(') (char ')') (many1 (noneOf ")"))
-
 
 fieldParserParser :: Bool -> ParserQ ParserType
 fieldParserParser signed =

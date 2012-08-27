@@ -14,8 +14,6 @@ module ParserGen.Common
     , AlphaNum (..)
     , unsafeAlphaNum
     , putAlphaNum
-
-    , putTS8
     ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -131,11 +129,3 @@ putAlphaNum = fst . BC.unfoldrN 12 (Just . f) . unAlphaNum
           in case fromIntegral $ i `rem` 36 of
                 l | l >= 10 -> (chr $ l - 10 + ord 'A', rest)
                 l           -> (chr $ l + ord '0', rest)
-
-putTS8 :: Int -> Int -> Int -> Int -> ByteString
-putTS8 h m s u = BC.pack $ concat
-    [ putDecimalXString 2 h
-    , putDecimalXString 2 m
-    , putDecimalXString 2 s
-    , putDecimalXString 2 u
-    ]

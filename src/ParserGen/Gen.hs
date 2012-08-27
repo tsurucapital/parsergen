@@ -37,7 +37,6 @@ mkDataDecl (Datatype {..}) = do
         fields <- catMaybes <$> mapM (mkFieldDef dc) constrFields
         return $ RecC (mkName constrName) fields
 
-
 mkFieldDef :: DataConstructor -> DataField -> Q (Maybe (Name, Strict, Type))
 mkFieldDef dc@(DataConstructor {..}) df@(DataField {..}) = return $ do
     name <- getFieldName dc df
@@ -51,7 +50,6 @@ getFieldName (DataConstructor {..}) (DataField {..}) =
     mkName <$> ((++) <$> (constrPrefix <|> defaultPrefix) <*> fieldName)
   where
     defaultPrefix = Just (map toLower . filter isUpper $ constrName)
-
 
 -- to create separate parsers for each constructor
 mkParsersDecls :: Datatype -> Q [Dec]
@@ -69,7 +67,6 @@ mkParsersDecls (Datatype {..}) =
                 [Clause [] (NormalB . DoE $ ensure : fields ++ [result] ) []]
             ]
       where
-
         ensureBytes :: Int -> Q Stmt
         ensureBytes t = [| P.ensureBytesLeft t |] >>= return . NoBindS
 

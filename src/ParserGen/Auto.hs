@@ -103,7 +103,7 @@ getTypeConsUncons name = do
 repeatParser :: DataField -> Exp -> Q Exp
 repeatParser df p = case fieldRepeat df of
     Nothing -> return p
-    Just q  -> [| replicateM q $(return p) |]
+    Just q  -> [|replicateM q $(return p)|]
 
 repeatUnparser :: DataField -> Exp -> Q Exp
 repeatUnparser df up
