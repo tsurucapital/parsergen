@@ -1,5 +1,5 @@
 -- | 'atoi' based parser
-module Atoi
+module ParserGen.Common.Atoi
     ( unsafeDecimalX
     ) where
 

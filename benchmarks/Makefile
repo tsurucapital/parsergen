@@ -1,3 +1,3 @@
 build:
-	hsc2hs Atoi.hsc
-	ghc --make -Wall -O2 -fforce-recomp -i../src atoi.c Main.hs
+	hsc2hs ParserGen/Common/Atoi.hsc
+	ghc --make -Wall -O2 -fforce-recomp -i../src ParserGen/Common/atoi.c BenchmarkSuite.hs

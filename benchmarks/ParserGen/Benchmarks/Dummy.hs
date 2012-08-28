@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Dummy
+module ParserGen.Benchmarks.Dummy
     ( Dummy (..)
     , parserForDummy
     , dummyPacket
