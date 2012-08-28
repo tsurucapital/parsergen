@@ -1,5 +1,5 @@
 Name:     parsergen
-Version:  0.1.0.0
+Version:  0.2.0.0
 Synopsis: TH parser generator for splitting bytestring into fixed-width fields
 
 Description:
@@ -13,11 +13,10 @@ Author:        Michael Baikov
 Maintainer:    manpacket@gmail.com
 Category:      Data
 Build-type:    Simple
-Cabal-version: >= 1.2
+Cabal-version: >= 1.8
 
 Extra-source-files:
   README.markdown
-  benchmarks/Dummy.ths
   tests/ParserGen/Tests/Packet.ths
 
 Library
@@ -68,3 +67,7 @@ Test-suite parsergen-tests
     filepath         >= 1.2 && < 2,
     parsec           >= 3   && < 4,
     template-haskell >= 2.5 && < 3
+
+Source-repository head
+  Type:     git
+  Location: git://github.com/tsurucapital/parsergen.git
