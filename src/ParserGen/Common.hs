@@ -46,6 +46,7 @@ unsafeDecimalX l = P.unsafeTake l >>= go
 -- | This is a template-haskell based version of 'unsafeDecimalX' which
 -- generates a fast, unrolled loop
 unsafeDecimalXTH :: Int -> Q Exp
+unsafeDecimalXTH 0    = [|return (0 :: Int)|]
 unsafeDecimalXTH size = do
     bs  <- newName "bs"
     go' <- go bs (LitE (IntegerL 0)) 0
