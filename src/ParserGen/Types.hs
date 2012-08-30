@@ -76,7 +76,10 @@ getFieldHasRepeat :: DataField -> Bool
 getFieldHasRepeat = isJust . fieldRepeat
 
 getFieldIsIgnored :: DataField -> Bool
-getFieldIsIgnored = isNothing . fieldName
+getFieldIsIgnored df = case fieldParser df of
+    CustomParser    _ -> False
+    HardcodedString _ -> False
+    _                 -> isNothing (fieldName df)
 
 data ParserType
     = CustomParser    Exp    -- user provided parser, ex: issue

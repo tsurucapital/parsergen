@@ -81,7 +81,7 @@ mkParsersDecls (Datatype {..}) =
             (parser, _) <- getFieldParserUnparser df Nothing
             return $ case getFieldName dc df of
                 Just n -> BindS (VarP $ prime n) parser
-                _      -> NoBindS parser
+                _      -> BindS WildP            parser
 
         result :: Stmt
         result = NoBindS (AppE (VarE . mkName $ "return")
