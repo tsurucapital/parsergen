@@ -38,7 +38,7 @@ unsafeDecimalX l = P.unsafeTake l >>= go
             | otherwise =
                 let x = fromIntegral (B.unsafeIndex bs i)
                 in if x < ord '0' || x > ord '9'
-                    then fail $ "not an Int: " ++ show bs
+                    then fail $ "Not an Int: " ++ show bs
                     else loop (acc * 10 - ord '0' + x) (i + 1)
     {-# INLINE go #-}
 {-# INLINE unsafeDecimalX #-}
@@ -63,7 +63,7 @@ unsafeDecimalXTH size = do
             next <- go bs (VarE acc) (i + 1)
 
             body <- [| if $(varE x) < ord '0' || $(varE x) > ord '9'
-                        then fail $ "Not an Int " ++ show $(varE bs)
+                        then fail $ "Not an Int: " ++ show $(varE bs)
                         else $(return next) |]
 
             return $ LetE
@@ -114,7 +114,7 @@ unsafeAlphaNum l = P.unsafeTake l >>= go
   where
     go bs = loop 0 0
       where
-        fail' = fail $ "Invalid alphanum: " ++ show bs
+        fail' = fail $ "Invalid AlphaNum: " ++ show bs
         -- We assume some things about the ascii layout, and get better
         -- branching that way...
         loop !acc !i
