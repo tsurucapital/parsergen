@@ -1,5 +1,5 @@
 Name:     parsergen
-Version:  0.2.0.3
+Version:  0.2.0.4
 Synopsis: TH parser generator for splitting bytestring into fixed-width fields
 
 Description:
@@ -37,7 +37,7 @@ Library
 
   Build-depends:
     base             >= 3   && < 5,
-    bytestring       >= 0.9 && < 0.10,
+    bytestring       >= 0.9 && < 0.11,
     directory        >= 1.1 && < 2,
     filepath         >= 1.2 && < 2,
     parsec           >= 3   && < 4,
@@ -62,7 +62,7 @@ Test-suite parsergen-tests
     test-framework-quickcheck2 >= 0.2 && < 0.3,
     -- Copied from regular dependencies...
     base             >= 3   && < 5,
-    bytestring       >= 0.9 && < 0.10,
+    bytestring       >= 0.9 && < 0.11,
     directory        >= 1.1 && < 2,
     filepath         >= 1.2 && < 2,
     parsec           >= 3   && < 4,
