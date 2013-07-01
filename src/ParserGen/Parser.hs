@@ -12,6 +12,7 @@ module ParserGen.Parser
     , ensureBytesLeft
     , atEnd
     , string
+    , anyChar
     , take
     , unsafeTake
     , skip
@@ -163,9 +164,19 @@ string s = do
     else fail $ "string"
 {-# INLINE string #-}
 
+anyChar :: Parser Char
+anyChar = do
+    s <- gets input
+    put (S (B.unsafeDrop 1 s))
+    return (w2c $! B.unsafeHead s)
+
 -- | Indicate whether the end of the input has been reached.
 atEnd :: Parser Bool
 atEnd = do
   i <- gets input
   return $! B.null i
 {-# INLINE atEnd #-}
+
+w2c :: Word8 -> Char
+w2c = toEnum . fromEnum
+{-# INLINE w2c #-}

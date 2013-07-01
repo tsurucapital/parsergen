@@ -32,6 +32,7 @@ mkFieldParser pty ftyname fwidth fignored
         UnsignedParser    -> case nameBase ftyname of
             "AlphaNum"   -> wj [|unsafeAlphaNum fwidth|] [|putAlphaNum|]
             "ByteString" -> wj [|P.unsafeTake  fwidth|]  [|id|]
+            "Char" | fwidth == 1 -> wj [|P.anyChar |]  [|id|]
             "Int"        -> wj (unsafeDecimalXTH fwidth) [|putDecimalX fwidth|]
             x            -> recurse x
         SignedParser      -> case nameBase ftyname of

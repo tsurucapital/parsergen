@@ -1,5 +1,5 @@
 Name:     parsergen
-Version:  0.2.0.4
+Version:  0.2.0.5
 Synopsis: TH parser generator for splitting bytestring into fixed-width fields
 
 Description:
