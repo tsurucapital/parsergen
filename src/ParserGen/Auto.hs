@@ -7,8 +7,9 @@ module ParserGen.Auto
 
 import Control.Applicative (pure, (<$>), (<*>))
 import Control.Monad (liftM2, mplus, replicateM)
-import qualified Data.ByteString.Char8 as BC
+import Data.Char (ord)
 import Language.Haskell.TH
+import qualified Data.ByteString.Char8 as BC
 
 import ParserGen.Common
 import ParserGen.Types
@@ -43,7 +44,9 @@ mkFieldParser pty ftyname fwidth fignored
             | length s /= fwidth -> fail $
                 "Width of " ++ show s ++ " is not " ++ show fwidth ++ "!"
             -- if string value is ignored - no need to return it
-            | fignored           -> wn [|P.string (BC.pack s)|]
+            | fignored           -> wn [| P.string (BC.pack s) |]
+            | length s == 1      -> wn [| let w = fromIntegral (ord . head $ s)
+                                          in P.word8 w >> return w |]
             | otherwise          ->
                 wn [|P.string (BC.pack s) >> return (BC.pack s)|]
   where

@@ -13,6 +13,7 @@ module ParserGen.Parser
     , atEnd
     , string
     , anyChar
+    , word8
     , take
     , unsafeTake
     , skip
@@ -169,6 +170,13 @@ anyChar = do
     s <- gets input
     put (S (B.unsafeDrop 1 s))
     return (w2c $! B.unsafeHead s)
+
+word8 :: Word8 -> Parser ()
+word8 w = do
+    i <- gets input
+    if B.unsafeHead i == w
+        then put (S (B.unsafeDrop 1 i))
+        else fail "word8"
 
 -- | Indicate whether the end of the input has been reached.
 atEnd :: Parser Bool
