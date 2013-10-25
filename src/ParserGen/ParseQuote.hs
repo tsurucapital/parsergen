@@ -87,7 +87,7 @@ constFieldParser = do
     fieldRepeat <- optionMaybe (try $ repeatFactor <* spaces)
     fieldName   <- fieldNameParser
     _           <- spaces
-    fieldStrict <- try (char '!' *> return True <* spaces) <|> return False
+    fieldStrict <- try (char '!' *> return True <* optional spaces) <|> return False
     fieldType   <- typeParser
     _           <- spaces
     signed      <- option False (True <$ char '+')
