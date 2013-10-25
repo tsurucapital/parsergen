@@ -5,13 +5,18 @@ module ParserGen.Gen
     ( genDataTypeFromFile
     , genParserFromFile
     , genWidthFromFile
+    , genDataTypeFromFile'
+    , genParserFromFile'
+    , genWidthFromFile'
     ) where
 
-import Language.Haskell.TH as TH
 import Control.Applicative
 import Control.Monad
 import Data.Char (isUpper, toLower)
+import Data.List (isSuffixOf)
 import Data.Maybe (catMaybes)
+import Language.Haskell.TH as TH
+import System.Directory (doesFileExist)
 
 import ParserGen.Auto
 import ParserGen.ParseQuote
@@ -26,6 +31,35 @@ genParserFromFile = getDatatypes >=> fmap concat . mapM mkParsersDecls
 
 genWidthFromFile :: FilePath -> Q [Dec]
 genWidthFromFile = getDatatypes >=> fmap concat . mapM mkWidthDecls
+
+genDataTypeFromFile' :: FilePath -> Q [Dec]
+genDataTypeFromFile' f = appendDependency f >> genDataTypeFromFile f
+
+genParserFromFile' :: FilePath -> Q [Dec]
+genParserFromFile' f = appendDependency f >> genParserFromFile f
+
+genWidthFromFile' :: FilePath -> Q [Dec]
+genWidthFromFile' f = appendDependency f >> genWidthFromFile f
+
+appendDependency :: FilePath -> Q ()
+appendDependency tpl = do
+        hsFile <- TH.loc_filename `fmap` TH.location
+        let depFile = mkDepName hsFile
+            depLine = tpl ++ "\n"
+
+        runIO $ do
+            depExists <- doesFileExist depFile
+            if depExists
+                then do oldDeps <- lines `fmap` readFile depFile
+                        when (notElem tpl oldDeps) $ do
+                            appendFile depFile depLine
+                else writeFile depFile depLine
+
+    where
+        mkDepName :: FilePath -> FilePath
+        mkDepName f = let toBase = if ".hs" `isSuffixOf` f
+                            then reverse . drop 3 . reverse else id
+                      in toBase f ++ ".dep"
 
 mkDataDecl :: Datatype -> Q Dec
 mkDataDecl (Datatype {..}) = do
