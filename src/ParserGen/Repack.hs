@@ -30,7 +30,6 @@ mkRepacker dts (Repacker rname cname cfields) = do
     repackCmds <- mkRepackCmds dc withNames
 
     bsVar     <- newName "bs"
-    undef     <- [|undefined|]
     btbT      <- [t|ByteString -> ByteString|]
     foldInit  <- [|($(varE bsVar) , [])|]
     fold      <- foldM executeRepackCmd foldInit repackCmds
@@ -113,4 +112,3 @@ executeRepackCmd e (Repack df f name) = do
        in (next, ps ++ $(return f) $(return $ VarE name)) |]
   where
     n = getFieldWidth df
-    r = getFieldHasRepeat df
