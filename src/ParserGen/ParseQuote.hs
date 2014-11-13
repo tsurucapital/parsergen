@@ -10,6 +10,7 @@ import Control.Monad (unless, (>=>))
 import Data.Char (chr)
 import Data.List (isPrefixOf)
 import Language.Haskell.TH as TH
+import Language.Haskell.TH.Syntax as TH
 import System.Directory (getCurrentDirectory)
 import System.FilePath.Posix ((</>), takeDirectory)
 import Text.Parsec hiding (spaces)
@@ -34,6 +35,7 @@ getTemplate templateName = do
     pwd <- runIO $ getCurrentDirectory
     let templatePath = (takeDirectory $ pwd </> filename) </> templateName
     body <- runIO $ readFile templatePath
+    TH.addDependentFile templatePath
     return (newPos templateName 1 1, body)
 
 parseInQ :: ParserQ v -> (SourcePos, String) -> Q v
