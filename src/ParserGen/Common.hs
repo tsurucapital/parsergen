@@ -2,6 +2,9 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE RankNTypes, ScopedTypeVariables #-}
+
 module ParserGen.Common
     ( unsafeDecimalX
     , unsafeDecimalXTH
@@ -14,6 +17,9 @@ module ParserGen.Common
     , AlphaNum (..)
     , unsafeAlphaNum
     , putAlphaNum
+
+    , StringPattern(..)
+    , stringPatternTH
     ) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -27,6 +33,13 @@ import Language.Haskell.TH
 
 import ParserGen.Parser (Parser)
 import qualified ParserGen.Parser as P
+
+import Data.Bits
+import Data.Word
+import Language.Haskell.TH.Syntax (Lift)
+import Foreign.Storable
+import Foreign.ForeignPtr
+import Data.ByteString.Internal (accursedUnutterablePerformIO, ByteString(..))
 
 unsafeDecimalX :: Int -> Parser Int
 unsafeDecimalX l = P.unsafeTake l >>= go
@@ -58,11 +71,13 @@ unsafeDecimalXTH size = do
         | otherwise = do
             x    <- newName $ "x" ++ show i
             acc  <- newName $ "var" ++ show i
-            xv   <- [|fromIntegral (B.unsafeIndex $(varE bs) i) :: Int|]
-            accv <- [|$(return prevacc) * 10 + $(varE x) - ord '0'|]
+            xv   <- [|fromIntegral (subtract 48 $ B.unsafeIndex $(varE bs) i) :: Int|]
+            accv <- if prevacc == (LitE (IntegerL 0))
+                        then varE x
+                        else [| $(return prevacc) * 10 + $(varE x) |]
             next <- go bs (VarE acc) (i + 1)
 
-            body <- [| if $(varE x) < ord '0' || $(varE x) > ord '9'
+            body <- [| if $(varE x) >= 10
                         then fail $ "Not an Int: " ++ show $(varE bs)
                         else $(return next) |]
 
@@ -108,6 +123,65 @@ putDecimalXString l i
 -- | Can keep up to 12 characters from 0..9, A..Z
 newtype AlphaNum = AlphaNum {unAlphaNum :: Int64}
     deriving (Show, Eq, Enum)
+
+
+newtype StringPattern = StringPattern ()
+
+stringPatternTH :: Int -> Int -> String -> Q Exp
+stringPatternTH b a p@(length -> l) = [| $(stringPatternMatch b a p) >> P.unsafeSkip l |]
+
+
+stringPatternMatch :: Int -> Int -> String -> Q Exp
+stringPatternMatch _before _after pat@(length -> l)
+    | l == 0 = [| return () |]
+    | l == 1 = let (expected :: Word8, mask :: Word8, _) = takeMask (extractMask pat)
+                in maskedTH ''Word8 (expected :: Word8) (mask :: Word8)   1
+    | l == 2 = let (expected :: Word16, mask :: Word16, _) = takeMask (extractMask pat)
+                in maskedTH ''Word16 (expected :: Word16) (mask :: Word16) 2
+    | l == 4 = let (expected :: Word32, mask :: Word32, _) = takeMask (extractMask pat)
+                in maskedTH ''Word32 (expected :: Word32) (mask :: Word32) 4
+    | l == 8 = let (expected :: Word64, mask :: Word64, _) = takeMask (extractMask pat)
+                in maskedTH ''Word64 (expected :: Word64) (mask :: Word64) 8
+    | l > 8 = do let (xs, rest) = splitAt 8 pat
+                 this <- stringPatternMatch _before _after xs
+                 next <- stringPatternMatch (_before + 8) (_after - 8) rest
+                 [| $( return this ) >> $( return next ) |]
+    | l > 4 && l < 8 && l + _after >= 8 =
+                let pat' = take 8 $ pat ++ repeat '?'
+                 in stringPatternMatch _before (_after - l) pat'
+    | otherwise = error $ "Unhandled pat: " ++ show (_before, _after, pat, l)
+
+takeMask :: forall a. (Num a, Storable a, FiniteBits a) => [(Word8, Bool)] -> (a, a, [(Word8, Bool)])
+takeMask xs =
+    let width = finiteBitSize (undefined :: a) `div` 8
+        (ys, rest) = splitAt width xs
+        ys' = take width (ys ++ repeat (0, False))
+        !pat = foldr (\(p, _) acc -> acc `shiftL` 8 + fromIntegral p) 0 ys'
+        !mask = foldr (\(_, m) acc -> acc `shiftL` 8 + if m then 0xFF else 0x00) 0 ys'
+     in (pat, mask, rest)
+
+
+extractMask :: String -> [(Word8, Bool)]
+extractMask []             = []
+extractMask ('\\':c@'?' :xs) = (fromIntegral $ ord c, True) : extractMask xs
+extractMask ('\\':c@'\\':xs) = (fromIntegral $ ord c, True) : extractMask xs
+extractMask ('?'        :xs) = (0, False)                   : extractMask xs
+extractMask (c          :xs) = (fromIntegral $ ord c, True) : extractMask xs
+
+maskedTH :: (Storable a, FiniteBits a, Lift a) => Name -> a -> a -> Int -> Q Exp
+maskedTH n expected mask s = [| P.peekBS >>= matchMasked (expected :: $x) (mask :: $x) |]
+    where
+        x = conT n
+
+{-# INLINE matchMasked #-}
+matchMasked :: (Storable a, FiniteBits a) => a -> a -> ByteString -> Parser ()
+matchMasked expect mask (PS x s _l) =
+    if (accursedUnutterablePerformIO $ withForeignPtr x $ \p ->
+            (expect /=) . (mask .&.) <$> peekByteOff p s)
+        then fail "match failed"
+        else return ()
+
+
 
 unsafeAlphaNum :: Int -> Parser AlphaNum
 unsafeAlphaNum l = P.unsafeTake l >>= go

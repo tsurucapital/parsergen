@@ -1,6 +1,6 @@
 -- | Utilities for automatically deriving parsers and unparsers for certain
 -- types
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, BangPatterns, TupleSections #-}
 module ParserGen.Auto
     ( getFieldParserUnparser
     ) where
@@ -10,50 +10,79 @@ import Control.Monad (liftM2, mplus, replicateM)
 import Data.Char (ord)
 import Language.Haskell.TH
 import qualified Data.ByteString.Char8 as BC
+import Data.Word (Word8)
 
 import ParserGen.Common
 import ParserGen.Types
 import qualified ParserGen.Parser as P
 
-getFieldParserUnparser :: DataField -> Maybe Exp -> Q (Exp, Maybe Exp)
-getFieldParserUnparser df mCustomUnparser = do
-    (parser, unparser) <- mkFieldParser (fieldParser df)
-        (getTypeName $ fieldType df) (fieldWidth df) (getFieldIsIgnored df)
+getFieldParserUnparser :: Int -> DataField -> Int -> Maybe Exp -> Q (Exp, Maybe Exp)
+getFieldParserUnparser spaceBefore df spaceAfter mCustomUnparser = do
+    (parser, unparser) <- mkFieldParser spaceBefore spaceAfter (fieldParser df)
+        (getTypeName $ fieldType df) (fieldWidth df) (getFieldResultIsIgnored df)
 
     parser'   <- repeatParser df parser
     unparser' <- maybe (return Nothing) (fmap Just . repeatUnparser df) $
         mplus mCustomUnparser unparser
     return (parser', unparser')
 
-mkFieldParser :: ParserType -> Name -> Int -> Bool -> Q (Exp, Maybe Exp)
-mkFieldParser pty ftyname fwidth fignored
-    | fignored  = wn [|P.unsafeSkip fwidth|]
-    | otherwise = case pty of
+mkFieldParser :: Int -> Int -> ParserType -> Name -> Int -> Bool -> Q (Exp, Maybe Exp)
+mkFieldParser spaceBefore spaceAfter pty ftyname fwidth fignored = case pty of
         CustomParser p    -> return (p, Nothing)
+
         UnsignedParser    -> case nameBase ftyname of
+            _ | fignored -> wn [|P.unsafeSkip fwidth|]
             "AlphaNum"   -> wj [|unsafeAlphaNum fwidth|] [|putAlphaNum|]
             "ByteString" -> wj [|P.unsafeTake  fwidth|]  [|id|]
             "Char" | fwidth == 1 -> wj [|P.anyChar |]  [|id|]
             "Int"        -> wj (unsafeDecimalXTH fwidth) [|putDecimalX fwidth|]
             x            -> recurse x
+
         SignedParser      -> case nameBase ftyname of
+            _ | fignored -> wn [|P.unsafeSkip fwidth|]
             "Int" -> wj (unsafeDecimalXSTH fwidth) [|putDecimalXS fwidth|]
             x     -> recurse x
 
-        HardcodedString s
-            | length s /= fwidth -> fail $
-                "Width of " ++ show s ++ " is not " ++ show fwidth ++ "!"
-            -- if string value is ignored - no need to return it
-            | fignored           -> wn [| P.string (BC.pack s) |]
-            | length s == 1      -> wn [| let w = fromIntegral (ord . head $ s)
-                                          in P.word8 w >> return w |]
-            | otherwise          ->
-                wn [|P.string (BC.pack s) >> return (BC.pack s)|]
+        HardcodedString s -> case nameBase ftyname of
+            _ | length s /= fwidth -> fail $
+                    "Width of " ++ show s ++ " is not " ++ show fwidth ++ "!"
+
+            "StringPattern"
+                | fignored -> (,Nothing) <$> stringPatternTH spaceBefore spaceAfter s
+                | otherwise -> error "StringPattern must be ignored to work"
+
+            "ByteString"
+                -- single byte case, we can match those as Word8 (more efficient) but return as ByteString
+                | length s == 1 -> let !w = fromIntegral (ord . head $ s) :: Word8
+                                    in wn $ if fignored
+                                                then [| P.word8 w |]
+                                                else [| P.word8 w >> return (BC.pack s) |]
+                -- if string value is ignored - no need to return it
+                | fignored  -> wn [| P.string (BC.pack s) |]
+                | otherwise -> wn [| P.string (BC.pack s) >> return (BC.pack s) |]
+
+            "Word8"
+                -- single byte case
+                | length s == 1 -> let !w = fromIntegral (ord . head $ s) :: Word8
+                                    in wn $ if fignored
+                                                then [| P.word8 w |]
+                                                else [| P.word8 w >> return w |]
+                -- if string value is ignored - no need to return it
+                | fignored  -> wn [| P.string (BC.pack s) |]
+                | otherwise -> error "Can't return several values as Word8 - change to ByteString or ignore results"
+
+
+            e -> error $ "Only ByteString and StringPattern types are supported for hardcoded strings " ++ show e ++ " given"
   where
     recurse ty = do
         (ftyname', cons, uncons) <- getTypeConsUncons ty
-        (fparser, funparser)     <- mkFieldParser pty ftyname' fwidth fignored
-        liftM2 (,) [|$(return cons) `fmap` $(return fparser)|] $
+        (fparser, funparser)     <- mkFieldParser spaceBefore spaceAfter pty ftyname' fwidth fignored
+
+        let cons' = if cons == VarE 'id
+                            then return fparser
+                            else [| $(return cons) `fmap` $(return fparser)|]
+
+        liftM2 (,) cons' $
             case funparser of
                 Nothing -> return Nothing
                 Just f  -> fmap Just [|\x -> $(return f) ($(return uncons) x)|]
@@ -85,10 +114,10 @@ getTypeConsUncons name = do
         TySynD _ _ (ConT synTo) ->
             return (synTo, id', id')
 
-        NewtypeD _ _ _ (RecC constr [(unconstr, _, ConT typeFor)]) _ ->
+        NewtypeD _ _ _ _ (RecC constr [(unconstr, _, ConT typeFor)]) _ ->
             return (typeFor, ConE constr, VarE unconstr)
 
-        NewtypeD _ _ _ (NormalC constr [(_, ConT typeFor)]) _ -> do
+        NewtypeD _ _ _ _ (NormalC constr [(_, ConT typeFor)]) _ -> do
 
             -- I don't think there's a simpler way?
             w  <- newName "w"

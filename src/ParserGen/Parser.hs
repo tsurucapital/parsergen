@@ -1,18 +1,21 @@
--- | Based on Data.Attoparsec.Zepto by  Bryan O'Sullivan 2011
---
 -- A tiny, highly specialized combinator parser for 'B.ByteString'
 -- strings. Designed to split bytestrings into fields with fixed widths.
 --
 -- unsafe versions of the functions do not perform checks that there
 -- is enough data left in the bytestring
-{-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE BangPatterns #-}
+
 module ParserGen.Parser
-    ( Parser
+    ( Parser(..), gets
     , parse
     , ensureBytesLeft
+    , ensureAtLeastBytesLeft
     , atEnd
     , string
-    , anyChar
+    , anyChar, char
+    , peekChar
+    , peekBS
     , word8
     , take
     , unsafeTake
@@ -34,79 +37,50 @@ newtype S = S {
       input :: ByteString
     }
 
-data Result a = Fail String
-              | OK !a
-
--- | A simple parser.
---
--- This monad is strict in its state, and the monadic bind operator
--- ('>>=') evaluates each result to weak head normal form before
--- passing it along.
-newtype Parser a = Parser {
-      runParser :: S -> (# Result a, S #)
-    }
+newtype Parser a = Parser { runParser :: forall r. S -> (S -> a -> r) -> (String -> r) -> r }
 
 instance Functor Parser where
-    fmap f m = Parser $ \s -> case runParser m s of
-                                (# OK a, s' #)     -> (# OK (f a), s' #)
-                                (# Fail err, s' #) -> (# Fail err, s' #)
     {-# INLINE fmap #-}
-
-instance Monad Parser where
-    return a = Parser $ \s -> (# OK a, s #)
-    {-# INLINE return #-}
-
-    m >>= k   = Parser $ \s -> case runParser m s of
-                                 (# OK a, s' #) -> runParser (k a) s'
-                                 (# Fail err, s' #) -> (# Fail err, s' #)
-    {-# INLINE (>>=) #-}
-
-    fail msg = Parser $ \s -> (# Fail msg, s #)
-
-instance MonadPlus Parser where
-    mzero = fail "mzero"
-    {-# INLINE mzero #-}
-
-    mplus a b = Parser $ \s ->
-                case runParser a s of
-                  (# ok@(OK _), s' #) -> (# ok, s' #)
-                  (# _, _ #) -> case runParser b s of
-                                   (# ok@(OK _), s'' #) -> (# ok, s'' #)
-                                   (# err, s'' #) -> (# err, s'' #)
-    {-# INLINE mplus #-}
+    fmap f p = Parser $ \st good bad ->
+        let onGood = \s a -> s `seq` good s (f a)
+            onBad  = \msg -> bad msg
+         in st `seq` runParser p st onGood onBad
 
 instance Applicative Parser where
-    pure   = return
-    {-# INLINE pure #-}
-    (<*>)  = ap
-    {-# INLINE (<*>) #-}
+    pure v = Parser $ \st good _ -> st `seq` good st v
+    (<*>) = ap
+
+instance Monad Parser where
+    return v = Parser $ \st good _ -> good st v
+    fail msg = Parser $ \_ _ bad -> bad msg
+    a >>= b = Parser $ \st good bad ->
+        let goodA !st' !a' = runParser (b a') st' good bad
+         in st `seq` runParser a st goodA bad
+
+instance MonadPlus Parser where
+    mzero = Parser $ \_ _ bad -> bad "mzero"
+    mplus a b = Parser $ \st good bad ->
+         st `seq` runParser a st good (\_ -> runParser b st good bad)
+
+instance Alternative Parser where
+    {-# INLINE empty #-}
+    empty = mzero
+    (<|>) = mplus
+
 
 gets :: (S -> a) -> Parser a
-gets f = Parser $ \s -> (# OK (f s), s #)
+gets f = Parser $ \st good _ -> good st (f st)
 {-# INLINE gets #-}
 
 put :: S -> Parser ()
-put s = Parser $ \_ -> (# OK (), s #)
+put st = Parser $ \_ good bad -> good st ()
 {-# INLINE put #-}
 
 -- | Run a parser.
 parse :: Parser a -> ByteString -> Either String a
-parse p bs = case runParser p (S bs) of
-    (# OK a, _ #)     -> Right a
-    (# Fail err, _ #) -> Left err
+parse p bs = runParser p (S bs) (const Right) Left
 {-# INLINE parse #-}
 
-instance Monoid (Parser a) where
-    mempty  = fail "mempty"
-    {-# INLINE mempty #-}
-    mappend = mplus
-    {-# INLINE mappend #-}
-
-instance Alternative Parser where
-    empty = fail "empty"
-    {-# INLINE empty #-}
-    (<|>) = mplus
-    {-# INLINE (<|>) #-}
 
 -- | Consume input while the predicate returns 'True'.
 takeWhile :: (Word8 -> Bool) -> Parser ByteString
@@ -133,6 +107,15 @@ ensureBytesLeft l = do
         else fail $ "Unexpected length: expected " ++ show l ++
                 ", but got " ++ show (B.length s)
 {-# INLINE ensureBytesLeft #-}
+
+ensureAtLeastBytesLeft :: Int -> Parser ()
+ensureAtLeastBytesLeft l = do
+    s <- gets input
+    if B.length s >= l
+        then return ()
+        else fail $ "Unexpected length: expected at least " ++ show l ++
+                ", but got " ++ show (B.length s)
+{-# INLINE ensureAtLeastBytesLeft #-}
 
 -- | Consume @n@ bytes of input without checking if it's available
 unsafeTake :: Int -> Parser ByteString
@@ -162,21 +145,44 @@ string s = do
   i <- gets input
   if s `B.isPrefixOf` i
     then put (S (B.unsafeDrop (B.length s) i))
-    else fail $ "string"
+    else fail "string"
 {-# INLINE string #-}
 
+{-# INLINE anyChar #-}
 anyChar :: Parser Char
 anyChar = do
     s <- gets input
     put (S (B.unsafeDrop 1 s))
     return (w2c $! B.unsafeHead s)
 
+{-# INLINE char #-}
+char :: Char -> Parser ()
+char c = do
+    s <- gets input
+    let c' = w2c $! B.unsafeHead s
+    if c == c'
+        then put (S (B.unsafeDrop 1 s))
+        else fail "unexpected char"
+
+{-# INLINE word8 #-}
 word8 :: Word8 -> Parser ()
 word8 w = do
     i <- gets input
     if B.unsafeHead i == w
         then put (S (B.unsafeDrop 1 i))
         else fail "word8"
+
+{-# INLINE peekChar #-}
+peekChar :: Parser Char
+peekChar = do
+    s <- gets input
+    if B.null s
+        then fail "no input"
+        else return (w2c $! B.unsafeHead s)
+
+{-# INLINE peekBS #-}
+peekBS :: Parser ByteString
+peekBS = gets input
 
 -- | Indicate whether the end of the input has been reached.
 atEnd :: Parser Bool

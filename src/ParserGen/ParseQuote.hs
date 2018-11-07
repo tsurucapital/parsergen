@@ -5,7 +5,6 @@ module ParserGen.ParseQuote
     , getRepackers
     ) where
 
-import Control.Applicative hiding (many, (<|>), optional)
 import Control.Monad (unless, (>=>))
 import Data.Char (chr)
 import Data.List (isPrefixOf)
@@ -77,15 +76,22 @@ constrParser = do
     constrPrefix <- optionMaybe (try $ spaces *> prefix)
     _            <- endofline
     constrFields <- many1 constFieldParser
-
+    constrMore   <- option False $ do _ <- fieldPadding
+                                      _ <- try (string "...")
+                                      _ <- endofline
+                                      return True
     return DataConstructor {..}
+
+
+fieldPadding :: ParserQ ()
+fieldPadding = () <$ try (string "    ") <?> "field padding"
 
 repeatFactor :: ParserQ Int
 repeatFactor = try (decimal <* char 'x') <?> "repetition factor"
 
 constFieldParser :: ParserQ DataField
-constFieldParser = do
-    _           <- try (string "    ") <?> "field padding"
+constFieldParser = try $ do
+    _           <- fieldPadding
     fieldRepeat <- optionMaybe (try $ repeatFactor <* spaces)
     fieldName   <- fieldNameParser
     _           <- spaces

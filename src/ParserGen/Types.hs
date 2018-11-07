@@ -12,7 +12,7 @@ module ParserGen.Types
     , getFieldWidth
     , getFieldRepeatType
     , getFieldHasRepeat
-    , getFieldIsIgnored
+    , getFieldIsIgnored, getFieldResultIsIgnored
 
     , ParserType (..)
 
@@ -45,6 +45,7 @@ data DataConstructor
     { constrName   :: String
     , constrPrefix :: Maybe String
     , constrFields :: [DataField]
+    , constrMore   :: Bool
     } deriving (Show)
 
 getConstructorWidth :: DataConstructor -> Int
@@ -79,7 +80,11 @@ getFieldIsIgnored :: DataField -> Bool
 getFieldIsIgnored df = case fieldParser df of
     CustomParser    _ -> False
     HardcodedString _ -> False
-    _                 -> isNothing (fieldName df)
+    _                 -> getFieldResultIsIgnored df
+
+getFieldResultIsIgnored :: DataField -> Bool
+getFieldResultIsIgnored = isNothing . fieldName
+
 
 data ParserType
     = CustomParser    Exp    -- user provided parser, ex: issue

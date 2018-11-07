@@ -91,7 +91,7 @@ mkRepackCmds dc repacks = fmap fuseSkips $ mapM mkRepackCmd $ constrFields dc
             Just (rf, n) -> do
                 -- Try to automatically derive an unparser with the optionally
                 -- custom-specified one
-                (_, unparser) <- getFieldParserUnparser df
+                (_, unparser) <- getFieldParserUnparser 0 df 0 -- 0 since we don't care about repacker
                     (repackerFieldUnparser rf)
 
                 -- Compose the two
