@@ -3,6 +3,7 @@
 --
 -- unsafe versions of the functions do not perform checks that there
 -- is enough data left in the bytestring
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE BangPatterns #-}
 
@@ -27,6 +28,7 @@ module ParserGen.Parser
 import Data.Word (Word8)
 import Control.Applicative
 import Control.Monad
+import qualified Control.Monad.Fail as Fail
 import Data.Monoid
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Unsafe as B
@@ -52,10 +54,15 @@ instance Applicative Parser where
 
 instance Monad Parser where
     return v = Parser $ \st good _ -> good st v
-    fail msg = Parser $ \_ _ bad -> bad msg
     a >>= b = Parser $ \st good bad ->
         let goodA !st' !a' = runParser (b a') st' good bad
          in st `seq` runParser a st goodA bad
+#if !MIN_VERSION_base(4,13,0)
+    fail = Fail.fail
+#endif
+
+instance Fail.MonadFail Parser where
+    fail msg = Parser $ \_ _ bad -> bad msg
 
 instance MonadPlus Parser where
     mzero = Parser $ \_ _ bad -> bad "mzero"
