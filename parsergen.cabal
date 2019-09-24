@@ -1,3 +1,4 @@
+Cabal-version: 2.4
 Name:     parsergen
 Version:  0.2.0.9
 Synopsis: TH parser generator for splitting bytestring into fixed-width fields
@@ -7,13 +8,12 @@ Description:
   .
   <https://github.com/tsurucapital/parsergen/blob/master/README.markdown>
 
-License:       BSD3
+License:       BSD-3-Clause
 License-file:  LICENSE
 Author:        Michael Baikov
 Maintainer:    manpacket@gmail.com
 Category:      Data
 Build-type:    Simple
-Cabal-version: >= 1.8
 
 Extra-source-files:
   README.markdown
