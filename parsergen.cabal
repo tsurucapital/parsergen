@@ -67,7 +67,8 @@ Test-suite parsergen-tests
     directory        >= 1.1 && < 2,
     filepath         >= 1.2 && < 2,
     parsec           >= 3   && < 4,
-    template-haskell >= 2.5 && < 3
+    template-haskell >= 2.5 && < 3,
+    deepseq
 
 Source-repository head
   Type:     git
