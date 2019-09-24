@@ -63,7 +63,7 @@ data DataField
 
 -- get size to skip taking into account its repetition and sign if exists
 getFieldWidth :: DataField -> Int
-getFieldWidth (DataField {..}) =
+getFieldWidth DataField{..} =
     let width = fieldWidth + if fieldParser == SignedParser then 1 else 0
         times = maybe 1 id fieldRepeat
     in width * times

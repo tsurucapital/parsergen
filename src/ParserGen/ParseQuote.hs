@@ -6,6 +6,7 @@ module ParserGen.ParseQuote
     ) where
 
 import Control.Monad (unless, (>=>))
+import Data.Functor
 import Data.Char (chr)
 import Data.List (isPrefixOf)
 import Language.Haskell.TH as TH
@@ -95,7 +96,7 @@ constFieldParser = try $ do
     fieldRepeat <- optionMaybe (try $ repeatFactor <* spaces)
     fieldName   <- fieldNameParser
     _           <- spaces
-    fieldStrict <- try (char '!' *> return True <* optional spaces) <|> return False
+    fieldStrict <- try (char '!' $> True <* optional spaces) <|> return False
     fieldType   <- typeParser
     _           <- spaces
     signed      <- option False (True <$ char '+')
@@ -111,7 +112,7 @@ fieldNameParser =
 typeParser :: ParserQ Type
 typeParser = (singleWord <|> multiWord) <?> "field type"
   where
-    singleWord = (TH.ConT . TH.mkName) <$> ((:) <$> letter <*> many alphaNum)
+    singleWord = TH.ConT . TH.mkName <$> ((:) <$> letter <*> many alphaNum)
     multiWord  = error "multiWord is not yet implemented"
 
 fieldParserParser :: Bool -> ParserQ ParserType
@@ -119,12 +120,12 @@ fieldParserParser signed =
     (if signed then pure SignedParser else fail "signed parser") <|>
     (CustomParser    <$> try (spaces *> customParser))           <|>
     (HardcodedString <$> try (spaces *> hardcodedString))        <|>
-    (pure UnsignedParser)
+    pure UnsignedParser
 
 customParser :: ParserQ Exp
 customParser = singleWord <?> "custom parser"
   where
-    singleWord = (TH.VarE . TH.mkName) <$>
+    singleWord = TH.VarE . TH.mkName <$>
         ((:) <$> lower <*> many1 (noneOf "( )\t\n"))
 
 hardcodedString :: ParserQ String
@@ -143,7 +144,7 @@ hardcodedString =
                 v   -> v -- unescape for \" and \\
 
     hex :: ParserQ Char
-    hex = char 'x' *> ((chr . read  . ("0x"++)) <$> many1 hexDigit)
+    hex = char 'x' *> (chr . read  . ("0x"++) <$> many1 hexDigit)
 
     dec :: ParserQ Char
     dec = chr <$> decimal
@@ -161,7 +162,7 @@ repackerParser = Repacker
 
 parseRepackerName :: ParserQ String
 parseRepackerName = do
-    name <- many1 alphaNum 
+    name <- many1 alphaNum
     unless ("repackerFor" `isPrefixOf` name) $ fail $
         "Repacker name must start with \"repackerFor\": " ++ name
     return name
@@ -177,12 +178,12 @@ decimal :: ParserQ Int
 decimal = read <$> many1 digit
 
 identifier :: ParserQ String
-identifier = ((:) <$> upper <*> many alphaNum)
+identifier = (:) <$> upper <*> many alphaNum
 
 prefix :: ParserQ String
-prefix = ((:) <$> lower <*> many alphaNum)
+prefix = (:) <$> lower <*> many alphaNum
 
-endofline :: ParserQ [Char]
+endofline :: ParserQ String
 endofline = many1
     (try $ many (oneOf "\t ")  *> (option "" $ try comment) *> char '\n') <?>
     "end of line"

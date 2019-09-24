@@ -28,7 +28,7 @@ newtype DecimalX = DecimalX Int
     deriving (Eq, Show)
 
 instance Arbitrary DecimalX where
-    arbitrary = DecimalX . (flip mod 1000000) . abs <$> arbitrary
+    arbitrary = DecimalX . flip mod 1000000 . abs <$> arbitrary
 
 testDecimalX :: DecimalX -> Bool
 testDecimalX (DecimalX x) =
@@ -61,7 +61,7 @@ newtype AlphaNumTest = AlphaNumTest ByteString
 instance Arbitrary AlphaNumTest where
     arbitrary = AlphaNumTest . BC.pack <$> replicateM 12 (elements chars)
       where
-        chars = (['A' .. 'Z'] ++ ['0' .. '9'])
+        chars = ['A' .. 'Z'] ++ ['0' .. '9']
 
 testAlphaNum :: AlphaNumTest -> Bool
 testAlphaNum (AlphaNumTest bs) =

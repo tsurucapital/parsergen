@@ -44,7 +44,10 @@ where
 - `!`: This field will be strict
 
 - `FieldType`: type name when using existing datatype, e.g. `Int` or
-  `ByteString`, or a custom type `Foo`
+  `ByteString`, or a custom type `Foo`. Parsergen provides a custom type `StringPattern`
+   which is a newtyped ByteString that allows you to ignore some symbols while matching
+   some other symbols. Used the same way as ByteString but symbols indicated by "?" will
+   be ignored. Currently it's not possible to match "?" symbol itself using `StringPattern`
 
 - `FieldWidth`: Number for size based parsing, e.g. `12`. This field is needed
   to perform some optimisations as well, so you have to specify field width even
@@ -75,7 +78,7 @@ Let's look at an example `.ths` file:
         ChanceOfSurvival  Int            3
 
       LotteryWin
-        _PacketType       ByteString     4  "LOTT"
+        _PacketType       StringPattern  4  "LOT?"
         Amount            Money         10
         6x WinningEntry   LotteryEntry   2
 

@@ -27,7 +27,6 @@ module ParserGen.Parser
 import Data.Word (Word8)
 import Control.Applicative
 import Control.Monad
-import Data.Monoid
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Unsafe as B
 import Data.ByteString (ByteString)
@@ -42,8 +41,8 @@ newtype Parser a = Parser { runParser :: forall r. S -> (S -> a -> r) -> (String
 instance Functor Parser where
     {-# INLINE fmap #-}
     fmap f p = Parser $ \st good bad ->
-        let onGood = \s a -> s `seq` good s (f a)
-            onBad  = \msg -> bad msg
+        let onGood s a = s `seq` good s (f a)
+            onBad  msg = bad msg
          in st `seq` runParser p st onGood onBad
 
 instance Applicative Parser where
@@ -52,10 +51,12 @@ instance Applicative Parser where
 
 instance Monad Parser where
     return v = Parser $ \st good _ -> good st v
-    fail msg = Parser $ \_ _ bad -> bad msg
     a >>= b = Parser $ \st good bad ->
         let goodA !st' !a' = runParser (b a') st' good bad
          in st `seq` runParser a st goodA bad
+
+instance MonadFail Parser where
+    fail msg = Parser $ \_ _ bad -> bad msg
 
 instance MonadPlus Parser where
     mzero = Parser $ \_ _ bad -> bad "mzero"

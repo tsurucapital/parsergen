@@ -1,5 +1,5 @@
 Name:     parsergen
-Version:  0.2.0.8
+Version:  0.2.0.9
 Synopsis: TH parser generator for splitting bytestring into fixed-width fields
 
 Description:
@@ -41,7 +41,8 @@ Library
     directory        >= 1.1 && < 2,
     filepath         >= 1.2 && < 2,
     parsec           >= 3   && < 4,
-    template-haskell >= 2.5 && < 3
+    template-haskell >= 2.5 && < 3,
+    deepseq          >= 1.2 && < 2
 
 Test-suite parsergen-tests
   Ghc-options:    -Wall

@@ -23,6 +23,8 @@ module ParserGen.Common
     ) where
 
 import Control.Applicative ((<$>), (<*>))
+import Control.DeepSeq (NFData)
+import Control.Monad
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BC
 import Data.ByteString.Internal (c2w)
@@ -72,7 +74,7 @@ unsafeDecimalXTH size = do
             x    <- newName $ "x" ++ show i
             acc  <- newName $ "var" ++ show i
             xv   <- [|fromIntegral (subtract 48 $ B.unsafeIndex $(varE bs) i) :: Int|]
-            accv <- if prevacc == (LitE (IntegerL 0))
+            accv <- if prevacc == LitE (IntegerL 0)
                         then varE x
                         else [| $(return prevacc) * 10 + $(varE x) |]
             next <- go bs (VarE acc) (i + 1)
@@ -125,10 +127,11 @@ newtype AlphaNum = AlphaNum {unAlphaNum :: Int64}
     deriving (Show, Eq, Enum)
 
 
-newtype StringPattern = StringPattern ()
+newtype StringPattern = StringPattern ByteString
+    deriving (Show, Eq, Ord, NFData)
 
 stringPatternTH :: Int -> Int -> String -> Q Exp
-stringPatternTH b a p@(length -> l) = [| $(stringPatternMatch b a p) >> P.unsafeSkip l |]
+stringPatternTH b a p@(length -> l) = [| $(stringPatternMatch b a p) >> StringPattern <$> P.unsafeTake l |]
 
 
 stringPatternMatch :: Int -> Int -> String -> Q Exp
@@ -176,10 +179,9 @@ maskedTH n expected mask s = [| P.peekBS >>= matchMasked (expected :: $x) (mask 
 {-# INLINE matchMasked #-}
 matchMasked :: (Storable a, FiniteBits a) => a -> a -> ByteString -> Parser ()
 matchMasked expect mask (PS x s _l) =
-    if (accursedUnutterablePerformIO $ withForeignPtr x $ \p ->
-            (expect /=) . (mask .&.) <$> peekByteOff p s)
-        then fail "match failed"
-        else return ()
+    when (accursedUnutterablePerformIO $ withForeignPtr x $ \p ->
+            (expect /=) . (mask .&.) <$> peekByteOff p s) $
+        fail "match failed"
 
 
 

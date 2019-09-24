@@ -22,7 +22,7 @@ import ParserGen.Types
 genRepackFromFile :: FilePath -> Q [Dec]
 genRepackFromFile templateName = do
     (dts, rs) <- unzipDecls <$> getDecls templateName
-    fmap concat $ mapM (mkRepacker dts) rs
+    concat <$> mapM (mkRepacker dts) rs
 
 mkRepacker :: [Datatype] -> Repacker -> Q [Dec]
 mkRepacker dts (Repacker rname cname cfields) = do
@@ -85,7 +85,7 @@ mkRepackCmds :: DataConstructor -> [(RepackerField, Name)] -> Q [RepackCmd]
 mkRepackCmds dc repacks = fmap fuseSkips $ mapM mkRepackCmd $ constrFields dc
   where
     mkRepackCmd :: DataField -> Q RepackCmd
-    mkRepackCmd df@(DataField {..}) =
+    mkRepackCmd df@DataField{..} =
         case find ((== fieldName) . Just . repackerFieldName . fst) repacks of
             Nothing      -> return $ Skip $ getFieldWidth df
             Just (rf, n) -> do

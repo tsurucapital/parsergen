@@ -47,9 +47,7 @@ mkFieldParser spaceBefore spaceAfter pty ftyname fwidth fignored = case pty of
             _ | length s /= fwidth -> fail $
                     "Width of " ++ show s ++ " is not " ++ show fwidth ++ "!"
 
-            "StringPattern"
-                | fignored -> (,Nothing) <$> stringPatternTH spaceBefore spaceAfter s
-                | otherwise -> error "StringPattern must be ignored to work"
+            "StringPattern" -> (,Nothing) <$> stringPatternTH spaceBefore spaceAfter s
 
             "ByteString"
                 -- single byte case, we can match those as Word8 (more efficient) but return as ByteString

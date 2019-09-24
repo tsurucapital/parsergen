@@ -62,17 +62,17 @@ appendDependency tpl = do
                       in toBase f ++ ".dep"
 
 mkDataDecl :: Datatype -> Q Dec
-mkDataDecl (Datatype {..}) = do
+mkDataDecl Datatype{..} = do
     constrs <- mapM mkConstDef typeConstrs
     return $ DataD [] (mkName typeName) [] Nothing constrs [DerivClause Nothing [ConT ''Eq, ConT ''Show]]
   where
     mkConstDef :: DataConstructor -> Q Con
-    mkConstDef dc@(DataConstructor {..}) = do
+    mkConstDef dc@DataConstructor{..} = do
         fields <- catMaybes <$> mapM (mkFieldDef dc) constrFields
         return $ RecC (mkName constrName) fields
 
 mkFieldDef :: DataConstructor -> DataField -> Q (Maybe (Name, Strict, Type))
-mkFieldDef dc@(DataConstructor {..}) df@(DataField {..}) = return $ do
+mkFieldDef dc@DataConstructor{..} df@DataField{..} = return $ do
     name <- getFieldName dc df
     return (name, strict, getFieldRepeatType df)
   where
@@ -83,7 +83,7 @@ mkFieldDef dc@(DataConstructor {..}) df@(DataField {..}) = return $ do
 
 
 getFieldName :: DataConstructor -> DataField -> Maybe Name
-getFieldName (DataConstructor {..}) (DataField {..}) =
+getFieldName DataConstructor{..} DataField{..} =
     mkName <$> ((++) <$> (constrPrefix <|> defaultPrefix) <*> fieldName)
   where
     defaultPrefix = Just (map toLower . filter isUpper $ constrName)
@@ -98,11 +98,11 @@ neighbors xs = r [] xs
 
 -- to create separate parsers for each constructor
 mkParsersDecls :: Datatype -> Q [Dec]
-mkParsersDecls (Datatype {..}) =
+mkParsersDecls Datatype{..} =
     concat <$> mapM (mkConstrParser typeName) typeConstrs
   where
     mkConstrParser :: String -> DataConstructor -> Q [Dec]
-    mkConstrParser name dc@(DataConstructor {..}) = do
+    mkConstrParser name dc@DataConstructor{..} = do
         fields <- mapM mkField (neighbors $ fuseIgnores constrFields)
         ensure <- ensureBytes constrMore $ getConstructorWidth dc
         t      <- [t| P.Parser |]
@@ -113,9 +113,9 @@ mkParsersDecls (Datatype {..}) =
             ]
       where
         ensureBytes :: Bool -> Int -> Q Stmt
-        ensureBytes more t = (if more
+        ensureBytes more t = NoBindS <$> (if more
                                 then [| P.ensureAtLeastBytesLeft t |]
-                                else [| P.ensureBytesLeft t |]) >>= return . NoBindS
+                                else [| P.ensureBytesLeft t |])
 
         funName :: Name
         funName = mkName $ "parserFor" ++ constrName
@@ -138,7 +138,7 @@ mkParsersDecls (Datatype {..}) =
                       (concatMap mkFieldAssignment constrFields)))
 
         mkFieldAssignment :: DataField -> [FieldExp]
-        mkFieldAssignment df@(DataField {..}) = case getFieldName dc df of
+        mkFieldAssignment df@DataField{..} = case getFieldName dc df of
             Just n  -> [(n, VarE $ prime n)]
             Nothing -> []
 
@@ -152,7 +152,7 @@ fuseIgnores (a : b : rest)
     fused = DataField { fieldName   = Nothing
                       , fieldStrict = False
                       , fieldRepeat = Nothing
-                      , fieldType   = (ConT . mkName $ "()")
+                      , fieldType   = ConT . mkName $ "()"
                       , fieldParser = UnsignedParser
                       , fieldWidth  = getFieldWidth a + getFieldWidth b
                       }
@@ -161,10 +161,10 @@ fuseIgnores (x : xs) = x : fuseIgnores xs
 fuseIgnores []       = []
 
 mkWidthDecls :: Datatype -> Q [Dec]
-mkWidthDecls (Datatype {..}) = concat <$> mapM mkConstrWidthDecl typeConstrs
+mkWidthDecls Datatype{..} = concat <$> mapM mkConstrWidthDecl typeConstrs
   where
     mkConstrWidthDecl :: DataConstructor -> Q [Dec]
-    mkConstrWidthDecl dc@(DataConstructor {..}) = return
+    mkConstrWidthDecl dc@DataConstructor{..} = return
         [ SigD name (ConT $ mkName "Int")
         , FunD name [Clause [] (NormalB $ LitE $ IntegerL width) []]
         ]
